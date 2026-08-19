@@ -1,0 +1,29 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    app_name: str = "SignalPulse API"
+    app_version: str = "0.1.0"
+    environment: str = "development"
+    log_level: str = "INFO"
+
+    database_url: str = "sqlite:///./signalpulse.db"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    wikipedia_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+    wikipedia_timeout_seconds: float = 5.0
+    wikipedia_lang: str = "en"
+    wikipedia_max_results: int = 10
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+settings = Settings()
