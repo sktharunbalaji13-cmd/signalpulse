@@ -1,0 +1,48 @@
+{
+  "kind": "Listing",
+  "data": {
+    "after": "t3_2wxyz",
+    "dist": 2,
+    "modhash": null,
+    "geo_filter": "",
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "id": "1abcd",
+          "name": "t3_1abcd",
+          "subreddit": "artificial",
+          "title": "Why transformers changed machine learning",
+          "selftext": "A long discussion about the attention mechanism, why it works, and what it means for the field. This text is short enough to fit the canonical description limit.",
+          "author": "ml_enthusiast",
+          "created_utc": 1705325400,
+          "permalink": "/r/artificial/comments/1abcd/why_transformers_changed_machine_learning/",
+          "url": "https://www.reddit.com/r/artificial/comments/1abcd/why_transformers_changed_machine_learning/",
+          "num_comments": 42,
+          "score": 1234,
+          "ups": 1000,
+          "downs": 0,
+          "subreddit_subscribers": 2500000
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "id": "2wxyz",
+          "name": "t3_2wxyz",
+          "subreddit": "MachineLearning",
+          "title": "Self-supervised learning explained simply",
+          "selftext": "",
+          "author": "[deleted]",
+          "created_utc": 1705260000,
+          "permalink": "/r/MachineLearning/comments/2wxyz/self_supervised_learning_explained_simply/",
+          "url": "https://example.com/external-article",
+          "num_comments": 8,
+          "score": 210,
+          "ups": 200,
+          "downs": 1
+        }
+      }
+    ]
+  }
+}

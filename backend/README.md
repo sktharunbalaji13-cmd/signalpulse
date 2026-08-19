@@ -17,9 +17,13 @@ pydantic-settings: `APP_NAME`, `APP_VERSION`, `ENVIRONMENT`, `LOG_LEVEL`, plus
 Wikipedia adapter settings (`WIKIPEDIA_USER_AGENT`, `WIKIPEDIA_TIMEOUT_SECONDS`,
 `WIKIPEDIA_LANG`, `WIKIPEDIA_MAX_RESULTS`) and Guardian Open Platform settings
 (`GUARDIAN_API_KEY`, `GUARDIAN_API_URL`, `GUARDIAN_TIMEOUT_SECONDS`,
-`GUARDIAN_MAX_RESULTS`). Get a free key at
-https://open-platform.theguardian.com/. With an empty key the Guardian source
-stays registered but reports as unavailable; nothing else breaks.
+`GUARDIAN_MAX_RESULTS`) and Reddit OAuth2 settings (`REDDIT_CLIENT_ID`,
+`REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT`, `REDDIT_TOKEN_URL`,
+`REDDIT_API_BASE`, `REDDIT_TIMEOUT_SECONDS`, `REDDIT_MAX_RESULTS`).
+Get a free Guardian key at https://open-platform.theguardian.com/ and create
+a Reddit "script" app at https://www.reddit.com/prefs/apps for the client
+credentials. With empty credentials a source stays registered but reports as
+unavailable; nothing else breaks.
 
 ## Run
 
@@ -41,8 +45,9 @@ POST /api/v1/searches        → 202 {search_id, status: running}  (returns imme
         │  background task fans out to every enabled source adapter
         ▼
 wikipedia adapter ──┐
+guardian adapter ───┤
                     ├─ asyncio.gather → SourceResult objects → SQLite (results + source_events)
-guardian adapter ───┘
+reddit adapter ─────┘
         ▼
 search status updated → completed | partial | failed
 GET  /api/v1/searches/{id}             → status, per-source events, result count
@@ -56,7 +61,9 @@ fails, the search is `partial` and Wikipedia results remain available; the
 failed source is recorded in `source_events` (status, latency, error type,
 safe message). All sources fail -> `failed`; all succeed -> `completed`.
 The pipeline only talks to the registry, so adding a source is an adapter +
-one registration line, not an orchestration rewrite.
+one registration line, not an orchestration rewrite. Wikipedia and Guardian
+are verified live; the Reddit adapter is verified offline against fixtures
+(live verification deferred until Reddit credentials are provisioned).
 
 ### Manual end-to-end test (live call)
 
@@ -89,6 +96,9 @@ api/routes → sources/registry → BaseSourceAdapter → SourceResult
   API, no key, no scraping).
 - **`app/sources/guardian.py`** — news adapter (Guardian Open Platform Content
   API, `api-key` from settings, no scraping).
+- **`app/sources/reddit.py`** + **`app/sources/reddit_auth.py`** — social
+  adapter (official Reddit OAuth2 client-credentials API, bearer token cache
+  keyed to the credential pair, no scraping, no unauthenticated fallback).
 - **`app/services/search_pipeline.py`** — the background job: fans out to all
   sources concurrently (`asyncio.gather`), persists results, records
   `source_events`, transitions the search status
@@ -132,6 +142,27 @@ to `failed`/`rate_limited`; HTTP 401/403 -> `failed`, HTTP 429 ->
 `rate_limited`. A missing `GUARDIAN_API_KEY` raises `SourceError` before any
 request. See `docs/ADR/0003-guardian-integration.md` for the full decision
 record.
+
+## Reddit integration
+
+`RedditAuth` exchanges `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` for a bearer
+token (`POST /api/v1/access_token`, `grant_type=client_credentials`) and
+caches it for Reddit's reported lifetime minus a safety margin; the cache is
+keyed to the credential pair. `RedditAdapter` then searches
+`GET {REDDIT_API_BASE}/search` (`q`, `limit`, `sort=relevance`,
+`type=link`) with `Authorization: Bearer`. Both requests use a descriptive
+`REDDIT_USER_AGENT` and the configured timeout.
+
+Normalization: canonical URLs prefer the API `permalink` and never follow
+outbound link targets; `[deleted]`/missing authors -> `None`; `selftext` ->
+description truncated to 500 chars; `created_utc` -> `published_at` (UTC,
+never fabricated); language is `None`. `raw` is the post payload with any key
+matching `token|secret|credential|authorization|password|api[-_]?key`
+recursively stripped. Timeouts -> `timeout`, HTTP 429 -> `rate_limited`,
+HTTP 401/403 -> `failed` (generic message, no credentials), malformed
+responses/network errors -> `failed`. A missing credential pair raises
+`SourceError` before any request. See
+`docs/ADR/0004-reddit-integration.md` for the full decision record.
 
 ## Manual API test (live call)
 

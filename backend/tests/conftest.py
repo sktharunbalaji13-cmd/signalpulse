@@ -4,9 +4,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db import session as db_session
 from app.db.models import Base
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def clean_secrets(monkeypatch):
+    """Keep every test offline and hermetic regardless of local .env.
+
+    Real credentials in backend/.env must never leak into test runs (e.g. a
+    live Guardian/Reddit request). Tests that need credentials set them
+    explicitly via their own fixtures.
+    """
+    monkeypatch.setattr(settings, "guardian_api_key", "")
+    monkeypatch.setattr(settings, "reddit_client_id", "")
+    monkeypatch.setattr(settings, "reddit_client_secret", "")
 
 
 @pytest.fixture()

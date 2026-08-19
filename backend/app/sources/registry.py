@@ -1,5 +1,6 @@
 from app.sources.base import BaseSourceAdapter
 from app.sources.guardian import GuardianAdapter
+from app.sources.reddit import RedditAdapter
 from app.sources.wikipedia import WikipediaAdapter
 
 
@@ -26,3 +27,4 @@ class SourceRegistry:
 registry = SourceRegistry()
 registry.register("wikipedia", WikipediaAdapter())
 registry.register("guardian", GuardianAdapter())
+registry.register("reddit", RedditAdapter())

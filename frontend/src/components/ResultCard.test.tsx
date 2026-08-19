@@ -52,4 +52,28 @@ describe('ResultCard', () => {
     )
     expect(screen.getByText(/Published:/)).not.toHaveTextContent('Not provided by source')
   })
+
+  it('renders a social result with a social chip and attribution', () => {
+    render(
+      <ResultCard
+        result={makeResult({
+          source_type: 'social',
+          source_name: 'Reddit',
+          title: 'Why transformers changed machine learning',
+          url: 'https://www.reddit.com/r/artificial/comments/1abcd/why_transformers_changed_machine_learning/',
+          author: 'ml_enthusiast',
+          published_at: '2026-08-19T10:00:00Z',
+        })}
+      />,
+    )
+
+    expect(screen.getByText('SOCIAL')).toBeInTheDocument()
+    expect(screen.getByText('Reddit')).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'Why transformers changed machine learning' })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://www.reddit.com/r/artificial/comments/1abcd/why_transformers_changed_machine_learning/',
+    )
+    expect(screen.getByText(/Published:/)).not.toHaveTextContent('Not provided by source')
+  })
 })

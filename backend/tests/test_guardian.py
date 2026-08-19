@@ -26,7 +26,7 @@ def run_search(adapter: GuardianAdapter, query: str) -> list[SourceResult]:
 
 
 @pytest.fixture(autouse=True)
-def guardian_key(monkeypatch):
+def guardian_key(monkeypatch, clean_secrets):
     monkeypatch.setattr(settings, "guardian_api_key", "test-key")
     monkeypatch.setattr(settings, "guardian_api_url", GUARDIAN_API_URL)
 

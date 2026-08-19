@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     guardian_timeout_seconds: float = 5.0
     guardian_max_results: int = 10
 
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
+    reddit_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+    reddit_token_url: str = "https://www.reddit.com/api/v1/access_token"
+    reddit_api_base: str = "https://oauth.reddit.com"
+    reddit_timeout_seconds: float = 5.0
+    reddit_max_results: int = 10
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

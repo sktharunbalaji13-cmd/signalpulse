@@ -9,6 +9,8 @@ from app.sources.wikipedia import WIKIPEDIA_API_URL
 FIXTURES = Path(__file__).parent / "fixtures"
 
 GUARDIAN_API_URL = "https://content.guardianapis.com/search"
+REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+REDDIT_SEARCH_URL = "https://oauth.reddit.com/search"
 
 
 def load_fixture(name: str) -> dict:
@@ -65,4 +67,39 @@ def mock_guardian_api_key_error() -> None:
 def mock_guardian_timeout() -> None:
     respx.get(GUARDIAN_API_URL).mock(
         side_effect=httpx.ConnectTimeout("timeout", request=httpx.Request("GET", GUARDIAN_API_URL))
+    )
+
+
+def mock_reddit_success() -> None:
+    respx.post(REDDIT_TOKEN_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("reddit_token_success.json"))
+    )
+    respx.get(REDDIT_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("reddit_search_success.json"))
+    )
+
+
+def mock_reddit_empty() -> None:
+    respx.post(REDDIT_TOKEN_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("reddit_token_success.json"))
+    )
+    respx.get(REDDIT_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("reddit_search_empty.json"))
+    )
+
+
+def mock_reddit_timeout() -> None:
+    respx.post(REDDIT_TOKEN_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("reddit_token_success.json"))
+    )
+    respx.get(REDDIT_SEARCH_URL).mock(
+        side_effect=httpx.ConnectTimeout(
+            "timeout", request=httpx.Request("GET", REDDIT_SEARCH_URL)
+        )
+    )
+
+
+def mock_reddit_auth_failure() -> None:
+    respx.post(REDDIT_TOKEN_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("reddit_token_failure.json"))
     )

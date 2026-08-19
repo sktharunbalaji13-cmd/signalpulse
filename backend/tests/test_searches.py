@@ -7,6 +7,7 @@ from app.db.models import Result, Search, SourceEvent
 from app.sources.wikipedia import WIKIPEDIA_API_URL
 from tests.helpers import (
     mock_guardian_empty,
+    mock_reddit_empty,
     mock_wikipedia_malformed,
     mock_wikipedia_rate_limited,
     mock_wikipedia_success,
@@ -15,8 +16,14 @@ from tests.helpers import (
 
 
 @pytest.fixture()
-def guardian_key(monkeypatch):
+def guardian_key(monkeypatch, clean_secrets):
     monkeypatch.setattr(settings, "guardian_api_key", "test-key")
+
+
+@pytest.fixture()
+def reddit_creds(monkeypatch, clean_secrets):
+    monkeypatch.setattr(settings, "reddit_client_id", "test-client-id")
+    monkeypatch.setattr(settings, "reddit_client_secret", "test-client-secret")
 
 
 def create_search(client, query="artificial intelligence", window_hours=None):
@@ -75,9 +82,10 @@ def test_post_searches_negative_window_rejected(client):
 
 
 @respx.mock
-def test_background_success_becomes_completed(client, guardian_key):
+def test_background_success_becomes_completed(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "completed"
@@ -87,6 +95,7 @@ def test_background_success_becomes_completed(client, guardian_key):
 def test_results_persisted(client, session_factory, guardian_key):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}/results").json()
     assert body["total"] == 2
@@ -102,13 +111,14 @@ def test_results_persisted(client, session_factory, guardian_key):
 
 
 @respx.mock
-def test_source_events_persisted(client, session_factory, guardian_key):
+def test_source_events_persisted(client, session_factory, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     with session_factory() as session:
         events = session.query(SourceEvent).filter_by(search_id=search_id).all()
-        assert len(events) == 2
+        assert len(events) == 3
         wikipedia_event = next(e for e in events if e.source_name == "Wikipedia")
         assert wikipedia_event.status == "success"
         assert wikipedia_event.result_count == 2
@@ -117,21 +127,26 @@ def test_source_events_persisted(client, session_factory, guardian_key):
         guardian_event = next(e for e in events if e.source_name == "The Guardian")
         assert guardian_event.status == "success"
         assert guardian_event.result_count == 0
+        reddit_event = next(e for e in events if e.source_name == "Reddit")
+        assert reddit_event.status == "success"
+        assert reddit_event.result_count == 0
 
 
 @respx.mock
-def test_completed_at_populated(client, guardian_key):
+def test_completed_at_populated(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["completed_at"] is not None
 
 
 @respx.mock
-def test_duration_ms_populated(client, guardian_key):
+def test_duration_ms_populated(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["duration_ms"] is not None
@@ -174,9 +189,10 @@ def test_malformed_response_marks_search_failed(client):
 
 
 @respx.mock
-def test_get_existing_search(client, guardian_key):
+def test_get_existing_search(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["search_id"] == search_id
@@ -192,9 +208,10 @@ def test_get_nonexistent_search_404(client):
 
 
 @respx.mock
-def test_completed_search_reports_result_count(client, guardian_key):
+def test_completed_search_reports_result_count(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["result_count"] == 2
@@ -204,9 +221,10 @@ def test_completed_search_reports_result_count(client, guardian_key):
 
 
 @respx.mock
-def test_results_returned_correctly(client, guardian_key):
+def test_results_returned_correctly(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}/results").json()
     assert body["total"] == 2
@@ -223,7 +241,7 @@ def test_results_returned_correctly(client, guardian_key):
 
 
 @respx.mock
-def test_results_pagination_works(client, guardian_key):
+def test_results_pagination_works(client, guardian_key, reddit_creds):
     pages = {
         "query": {
             "pages": {
@@ -240,6 +258,7 @@ def test_results_pagination_works(client, guardian_key):
     }
     respx.get(WIKIPEDIA_API_URL).mock(return_value=httpx.Response(200, json=pages))
     mock_guardian_empty()
+    mock_reddit_empty()
     search_id = create_search(client, query="pages")
     page1 = client.get(f"/api/v1/searches/{search_id}/results?page=1&per_page=5").json()
     page2 = client.get(f"/api/v1/searches/{search_id}/results?page=2&per_page=5").json()
@@ -258,9 +277,10 @@ def test_results_nonexistent_search_404(client):
 
 
 @respx.mock
-def test_history_newest_first(client, guardian_key):
+def test_history_newest_first(client, guardian_key, reddit_creds):
     mock_wikipedia_success()
     mock_guardian_empty()
+    mock_reddit_empty()
     first = create_search(client, query="first query")
     second = create_search(client, query="second query")
     third = create_search(client, query="third query")
