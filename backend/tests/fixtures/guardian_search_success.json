@@ -1,0 +1,48 @@
+{
+  "response": {
+    "status": "ok",
+    "userTier": "developer",
+    "total": 2,
+    "startIndex": 1,
+    "pageSize": 10,
+    "currentPage": 1,
+    "pages": 1,
+    "orderBy": "relevance",
+    "results": [
+      {
+        "id": "technology/2024/jan/15/artificial-intelligence-act-eu",
+        "type": "article",
+        "sectionId": "technology",
+        "sectionName": "Technology",
+        "webPublicationDate": "2024-01-15T10:30:00Z",
+        "webTitle": "EU passes landmark AI Act",
+        "webUrl": "https://www.theguardian.com/technology/2024/jan/15/artificial-intelligence-act-eu",
+        "apiUrl": "https://content.guardianapis.com/technology/2024/jan/15/artificial-intelligence-act-eu",
+        "isHosted": false,
+        "pillarId": "pillar/news",
+        "pillarName": "News",
+        "fields": {
+          "trailText": "The European Union has approved sweeping rules for artificial intelligence systems.",
+          "byline": "Elena Morris"
+        }
+      },
+      {
+        "id": "technology/2024/jan/14/ai-weather-forecasts",
+        "type": "article",
+        "sectionId": "technology",
+        "sectionName": "Technology",
+        "webPublicationDate": "2024-01-14T08:00:00Z",
+        "webTitle": "AI weather forecasts challenge traditional models",
+        "webUrl": "https://www.theguardian.com/technology/2024/jan/14/ai-weather-forecasts",
+        "apiUrl": "https://content.guardianapis.com/technology/2024/jan/14/ai-weather-forecasts",
+        "isHosted": false,
+        "pillarId": "pillar/news",
+        "pillarName": "News",
+        "fields": {
+          "trailText": "",
+          "byline": ""
+        }
+      }
+    ]
+  }
+}

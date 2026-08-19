@@ -34,6 +34,8 @@ class SourceStatus(BaseModel):
     name: str
     status: str
     result_count: int | None = None
+    latency_ms: int | None = None
+    error_type: str | None = None
     error: str | None = None
 
 

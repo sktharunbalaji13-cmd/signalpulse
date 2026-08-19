@@ -15,7 +15,11 @@ pip install -e ".[dev]"
 Copy `.env.example` to `.env` and adjust values. Settings are read via
 pydantic-settings: `APP_NAME`, `APP_VERSION`, `ENVIRONMENT`, `LOG_LEVEL`, plus
 Wikipedia adapter settings (`WIKIPEDIA_USER_AGENT`, `WIKIPEDIA_TIMEOUT_SECONDS`,
-`WIKIPEDIA_LANG`, `WIKIPEDIA_MAX_RESULTS`).
+`WIKIPEDIA_LANG`, `WIKIPEDIA_MAX_RESULTS`) and Guardian Open Platform settings
+(`GUARDIAN_API_KEY`, `GUARDIAN_API_URL`, `GUARDIAN_TIMEOUT_SECONDS`,
+`GUARDIAN_MAX_RESULTS`). Get a free key at
+https://open-platform.theguardian.com/. With an empty key the Guardian source
+stays registered but reports as unavailable; nothing else breaks.
 
 ## Run
 
@@ -30,13 +34,15 @@ On startup the app creates the SQLite database and tables automatically
 (`signalpulse.db` in the backend directory; git-ignored). No migrations yet —
 the schema is still evolving.
 
-## Search workflow (M1 step 2)
+## Search workflow (M2)
 
 ```
 POST /api/v1/searches        → 202 {search_id, status: running}  (returns immediately)
-        │  background task runs the enabled source adapters
+        │  background task fans out to every enabled source adapter
         ▼
-wikipedia adapter → SourceResult objects → persisted to SQLite (results + source_events)
+wikipedia adapter ──┐
+                    ├─ asyncio.gather → SourceResult objects → SQLite (results + source_events)
+guardian adapter ───┘
         ▼
 search status updated → completed | partial | failed
 GET  /api/v1/searches/{id}             → status, per-source events, result count
@@ -44,8 +50,13 @@ GET  /api/v1/searches/{id}/results     → paginated normalized results
 GET  /api/v1/searches?limit=20         → history, newest first
 ```
 
-Only `wikipedia` is enabled. The pipeline iterates the registry, so adding a
-source is a registration change, not an orchestration rewrite.
+Sources run **concurrently** with isolated failures: one source failing never
+cancels or discards another's results. If Wikipedia succeeds and Guardian
+fails, the search is `partial` and Wikipedia results remain available; the
+failed source is recorded in `source_events` (status, latency, error type,
+safe message). All sources fail -> `failed`; all succeed -> `completed`.
+The pipeline only talks to the registry, so adding a source is an adapter +
+one registration line, not an orchestration rewrite.
 
 ### Manual end-to-end test (live call)
 
@@ -74,11 +85,14 @@ api/routes → sources/registry → BaseSourceAdapter → SourceResult
 - **`app/sources/registry.py`** — maps source names to adapter instances.
   Adding a source = write an adapter + one `register` line; nothing else in the
   system changes.
-- **`app/sources/wikipedia.py`** — the first adapter (official MediaWiki action
+- **`app/sources/wikipedia.py`** — reference adapter (official MediaWiki action
   API, no key, no scraping).
-- **`app/services/search_pipeline.py`** — the background job: iterates enabled
-  sources, persists results, records `source_events`, transitions the search
-  status (`completed`/`partial`/`failed`). No dedup/ranking yet.
+- **`app/sources/guardian.py`** — news adapter (Guardian Open Platform Content
+  API, `api-key` from settings, no scraping).
+- **`app/services/search_pipeline.py`** — the background job: fans out to all
+  sources concurrently (`asyncio.gather`), persists results, records
+  `source_events`, transitions the search status
+  (`completed`/`partial`/`failed`). No dedup/ranking yet.
 
 ### SourceResult (canonical model)
 
@@ -105,6 +119,19 @@ configurable User-Agent identifying SignalPulse, `maxlag=5` politeness, and a
 malformed JSON). `published_at` is always `None` for now — Wikipedia search
 results only expose last-edit time, which is not a trustworthy publication
 timestamp.
+
+## Guardian integration
+
+`GuardianAdapter` calls `GET /search` on the Guardian Open Platform Content
+API with `api-key`, `page-size`, `show-fields=trailText,byline` and
+`order-by=relevance`. `webTitle` -> title, `webUrl` -> url, `fields.trailText`
+-> description (truncated to 500 chars), `fields.byline` -> author,
+`webPublicationDate` -> `published_at` normalized to UTC (never fabricated).
+API errors arrive as HTTP 200 with `response.status = "error"` and are mapped
+to `failed`/`rate_limited`; HTTP 401/403 -> `failed`, HTTP 429 ->
+`rate_limited`. A missing `GUARDIAN_API_KEY` raises `SourceError` before any
+request. See `docs/ADR/0003-guardian-integration.md` for the full decision
+record.
 
 ## Manual API test (live call)
 

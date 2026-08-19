@@ -1,9 +1,12 @@
 import httpx
+import pytest
 import respx
 
+from app.core.config import settings
 from app.db.models import Result, Search, SourceEvent
 from app.sources.wikipedia import WIKIPEDIA_API_URL
 from tests.helpers import (
+    mock_guardian_empty,
     mock_wikipedia_malformed,
     mock_wikipedia_rate_limited,
     mock_wikipedia_success,
@@ -11,11 +14,20 @@ from tests.helpers import (
 )
 
 
+@pytest.fixture()
+def guardian_key(monkeypatch):
+    monkeypatch.setattr(settings, "guardian_api_key", "test-key")
+
+
 def create_search(client, query="artificial intelligence", window_hours=None):
     body = {"query": query}
     if window_hours is not None:
         body["window_hours"] = window_hours
     return client.post("/api/v1/searches", json=body).json()["search_id"]
+
+
+def find_source(sources, name):
+    return next(source for source in sources if source["name"] == name)
 
 
 # --- POST /searches ----------------------------------------------------------
@@ -63,16 +75,18 @@ def test_post_searches_negative_window_rejected(client):
 
 
 @respx.mock
-def test_background_success_becomes_completed(client):
+def test_background_success_becomes_completed(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "completed"
 
 
 @respx.mock
-def test_results_persisted(client, session_factory):
+def test_results_persisted(client, session_factory, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}/results").json()
     assert body["total"] == 2
@@ -88,30 +102,36 @@ def test_results_persisted(client, session_factory):
 
 
 @respx.mock
-def test_source_events_persisted(client, session_factory):
+def test_source_events_persisted(client, session_factory, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     with session_factory() as session:
         events = session.query(SourceEvent).filter_by(search_id=search_id).all()
-        assert len(events) == 1
-        assert events[0].source_name == "Wikipedia"
-        assert events[0].status == "success"
-        assert events[0].result_count == 2
-        assert events[0].latency_ms is not None
-        assert events[0].error_message is None
+        assert len(events) == 2
+        wikipedia_event = next(e for e in events if e.source_name == "Wikipedia")
+        assert wikipedia_event.status == "success"
+        assert wikipedia_event.result_count == 2
+        assert wikipedia_event.latency_ms is not None
+        assert wikipedia_event.error_message is None
+        guardian_event = next(e for e in events if e.source_name == "The Guardian")
+        assert guardian_event.status == "success"
+        assert guardian_event.result_count == 0
 
 
 @respx.mock
-def test_completed_at_populated(client):
+def test_completed_at_populated(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["completed_at"] is not None
 
 
 @respx.mock
-def test_duration_ms_populated(client):
+def test_duration_ms_populated(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["duration_ms"] is not None
@@ -127,8 +147,9 @@ def test_timeout_marks_search_failed(client):
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "failed"
-    assert body["sources"][0]["status"] == "timeout"
-    assert "timed out" in body["sources"][0]["error"]
+    wikipedia_source = find_source(body["sources"], "Wikipedia")
+    assert wikipedia_source["status"] == "timeout"
+    assert "timed out" in wikipedia_source["error"]
 
 
 @respx.mock
@@ -137,7 +158,7 @@ def test_rate_limited_marks_search_failed(client):
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "failed"
-    assert body["sources"][0]["status"] == "rate_limited"
+    assert find_source(body["sources"], "Wikipedia")["status"] == "rate_limited"
 
 
 @respx.mock
@@ -146,22 +167,23 @@ def test_malformed_response_marks_search_failed(client):
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "failed"
-    assert body["sources"][0]["status"] == "failed"
+    assert find_source(body["sources"], "Wikipedia")["status"] == "failed"
 
 
 # --- GET /searches/{id} -------------------------------------------------------
 
 
 @respx.mock
-def test_get_existing_search(client):
+def test_get_existing_search(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["search_id"] == search_id
     assert body["query"] == "artificial intelligence"
     assert body["status"] == "completed"
-    assert body["sources"][0]["name"] == "Wikipedia"
-    assert body["sources"][0]["result_count"] == 2
+    wikipedia_source = find_source(body["sources"], "Wikipedia")
+    assert wikipedia_source["result_count"] == 2
 
 
 def test_get_nonexistent_search_404(client):
@@ -170,8 +192,9 @@ def test_get_nonexistent_search_404(client):
 
 
 @respx.mock
-def test_completed_search_reports_result_count(client):
+def test_completed_search_reports_result_count(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["result_count"] == 2
@@ -181,8 +204,9 @@ def test_completed_search_reports_result_count(client):
 
 
 @respx.mock
-def test_results_returned_correctly(client):
+def test_results_returned_correctly(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}/results").json()
     assert body["total"] == 2
@@ -199,7 +223,7 @@ def test_results_returned_correctly(client):
 
 
 @respx.mock
-def test_results_pagination_works(client):
+def test_results_pagination_works(client, guardian_key):
     pages = {
         "query": {
             "pages": {
@@ -215,6 +239,7 @@ def test_results_pagination_works(client):
         }
     }
     respx.get(WIKIPEDIA_API_URL).mock(return_value=httpx.Response(200, json=pages))
+    mock_guardian_empty()
     search_id = create_search(client, query="pages")
     page1 = client.get(f"/api/v1/searches/{search_id}/results?page=1&per_page=5").json()
     page2 = client.get(f"/api/v1/searches/{search_id}/results?page=2&per_page=5").json()
@@ -233,8 +258,9 @@ def test_results_nonexistent_search_404(client):
 
 
 @respx.mock
-def test_history_newest_first(client):
+def test_history_newest_first(client, guardian_key):
     mock_wikipedia_success()
+    mock_guardian_empty()
     first = create_search(client, query="first query")
     second = create_search(client, query="second query")
     third = create_search(client, query="third query")

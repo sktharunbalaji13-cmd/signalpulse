@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import { ResultCard } from './components/ResultCard'
 import { SearchBar } from './components/SearchBar'
+import { SourceStatusSummary } from './components/SourceStatusSummary'
 import { useSearch } from './hooks/useSearch'
 
 function App() {
-  const { viewState, query, resultCount, results, error, runSearch } = useSearch()
+  const { viewState, query, resultCount, results, sources, error, runSearch } = useSearch()
   const [apiStatus, setApiStatus] = useState('checking…')
 
   useEffect(() => {
@@ -32,9 +33,12 @@ function App() {
         {searching && <p className="status-text">Searching…</p>}
 
         {viewState === 'failed' && (
-          <p className="status-text status-text--error" role="alert">
-            {error}
-          </p>
+          <>
+            <p className="status-text status-text--error" role="alert">
+              {error}
+            </p>
+            <SourceStatusSummary sources={sources} />
+          </>
         )}
 
         {viewState === 'partial' && (
@@ -48,6 +52,7 @@ function App() {
             <h2 className="results-heading">
               Results for: &quot;{query}&quot;
             </h2>
+            <SourceStatusSummary sources={sources} />
             {results.length === 0 ? (
               <p className="status-text">No results found.</p>
             ) : (

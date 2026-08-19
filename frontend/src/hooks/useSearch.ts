@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { api, type SearchResultItem, type SearchStatusResponse } from '../api/client'
+import { api, type SearchResultItem, type SearchStatusResponse, type SourceStatus } from '../api/client'
 
 const POLL_INTERVAL_MS = 700
 
@@ -11,6 +11,7 @@ export type SearchState = {
   query: string
   resultCount: number
   results: SearchResultItem[]
+  sources: SourceStatus[]
   error: string | null
 }
 
@@ -19,6 +20,7 @@ const initialState: SearchState = {
   query: '',
   resultCount: 0,
   results: [],
+  sources: [],
   error: null,
 }
 
@@ -59,6 +61,7 @@ export function useSearch() {
           setState((prev) => ({
             ...prev,
             viewState: 'failed',
+            sources: search.sources,
             error: 'Search failed. The source may be unavailable; try again shortly.',
           }))
         } else {
@@ -67,6 +70,7 @@ export function useSearch() {
           setState((prev) => ({
             ...prev,
             viewState,
+            sources: search.sources,
             resultCount: results.total,
             results: results.items,
           }))

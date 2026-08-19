@@ -79,6 +79,8 @@ async def get_search(
             name=event.source_name,
             status=event.status,
             result_count=event.result_count,
+            latency_ms=event.latency_ms,
+            error_type=event.error_type,
             error=event.error_message,
         )
         for event in events

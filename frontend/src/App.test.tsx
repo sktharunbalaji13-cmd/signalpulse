@@ -99,6 +99,65 @@ describe('App', () => {
     expect(await screen.findByText(/Search failed\./, undefined, { timeout: 5000 })).toBeInTheDocument()
   })
 
+  it('shows a per-source status summary on completion', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'completed',
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          { name: 'The Guardian', status: 'success', result_count: 8, latency_ms: 410, error_type: null, error: null },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 2,
+      page: 1,
+      per_page: 20,
+      items: [makeResult(), makeResult({ source_type: 'news', source_name: 'The Guardian', title: 'Guardian article' })],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(await screen.findByText(/Wikipedia ✓ 10 results/, undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText(/The Guardian ✓ 8 results/)).toBeInTheDocument()
+    expect(screen.getByText('NEWS')).toBeInTheDocument()
+  })
+
+  it('shows an unavailable status for a failed source', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'partial',
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          {
+            name: 'The Guardian',
+            status: 'failed',
+            result_count: null,
+            latency_ms: 90,
+            error_type: 'failed',
+            error: 'The Guardian API key is not configured',
+          },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 1,
+      page: 1,
+      per_page: 20,
+      items: [makeResult()],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(await screen.findByText(/The Guardian unavailable/, undefined, { timeout: 5000 })).toBeInTheDocument()
+  })
+
   it('shows available results when the status is partial', async () => {
     mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
     mockedApi.getSearch.mockResolvedValue(makeSearchStatus({ status: 'partial' }))

@@ -15,6 +15,8 @@ export type SourceStatus = {
   name: string
   status: string
   result_count: number | null
+  latency_ms: number | null
+  error_type: string | null
   error: string | null
 }
 

@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     wikipedia_lang: str = "en"
     wikipedia_max_results: int = 10
 
+    guardian_api_key: str = ""
+    guardian_api_url: str = "https://content.guardianapis.com/search"
+    guardian_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+    guardian_timeout_seconds: float = 5.0
+    guardian_max_results: int = 10
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

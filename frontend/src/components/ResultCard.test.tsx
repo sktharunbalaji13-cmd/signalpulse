@@ -27,4 +27,29 @@ describe('ResultCard', () => {
     const published = screen.getByText(/Published:/).textContent
     expect(published).not.toContain('Not provided by source')
   })
+
+  it('renders a news result with source attribution and published time', () => {
+    render(
+      <ResultCard
+        result={makeResult({
+          source_type: 'news',
+          source_name: 'The Guardian',
+          title: 'EU passes landmark AI Act',
+          url: 'https://www.theguardian.com/technology/2024/jan/15/artificial-intelligence-act-eu',
+          author: 'Elena Morris',
+          published_at: '2024-01-15T10:30:00Z',
+          language: 'en',
+        })}
+      />,
+    )
+
+    expect(screen.getByText('NEWS')).toBeInTheDocument()
+    expect(screen.getByText('The Guardian')).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'EU passes landmark AI Act' })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://www.theguardian.com/technology/2024/jan/15/artificial-intelligence-act-eu',
+    )
+    expect(screen.getByText(/Published:/)).not.toHaveTextContent('Not provided by source')
+  })
 })
