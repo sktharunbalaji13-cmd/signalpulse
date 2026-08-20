@@ -179,3 +179,42 @@ def test_monotone_candidates_share_within_type_interaction():
     news_rhos = {name: rows[name]["spearman_by_type"]["news"] for name in monotone}
     assert len(set(news_rhos.values())) == 1
     assert news_rhos["design"] == 0.4522
+
+
+def test_production_scorer_reproduces_the_design_candidate_exactly():
+    """The accepted M3-C model must be the production scorer, bit for bit.
+
+    Runs the production ``app.services.freshness.freshness_score`` against the
+    experiment's ``design`` candidate over the probe grid and every corpus item
+    at the same fixed instants. Any divergence means the production scorer
+    drifted from the validated curve.
+    """
+    import sys
+    from pathlib import Path
+
+    from eval import corpus as eval_corpus
+    from eval.schema import _parse_ts
+
+    backend_dir = Path(__file__).resolve().parents[2] / "backend"
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    from app.services.freshness import freshness_score  # noqa: PLC0415
+
+    design = fe.candidates()["design"]["scorer"]
+
+    for age_hours in fe.PROBE_AGES_HOURS:
+        timestamp = fe._ts(age_hours)
+        for source_type in ("news", "social", "reference"):
+            produced = freshness_score(_parse_ts(timestamp), source_type, now=fe.NOW)
+            expected = design(timestamp, fe._ts(0.0), source_type)
+            assert produced == expected, (age_hours, source_type)
+
+    for query in eval_corpus.QUERIES:
+        for item in query["items"]:
+            produced = freshness_score(
+                _parse_ts(item["published_at"]) if item["published_at"] else None,
+                item["source_type"],
+                now=fe.NOW,
+            )
+            expected = design(item["published_at"], item["retrieved_at"], item["source_type"])
+            assert produced == expected, item["id"]
