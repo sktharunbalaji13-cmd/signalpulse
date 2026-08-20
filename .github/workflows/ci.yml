@@ -29,6 +29,14 @@ jobs:
       - name: Test
         run: pytest
 
+      - name: Eval lint
+        working-directory: .
+        run: ruff check eval --config backend/pyproject.toml
+
+      - name: Eval tests
+        working-directory: .
+        run: python -m pytest eval/tests
+
   frontend:
     name: Frontend (build)
     runs-on: ubuntu-latest

@@ -1,0 +1,3 @@
+# Generated evaluation output is reproducible via `python -m eval` and is not
+# committed. Only the directory itself is tracked (via .gitkeep).
+*.json
