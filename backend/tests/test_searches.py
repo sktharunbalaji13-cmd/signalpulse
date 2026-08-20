@@ -1,10 +1,10 @@
 import httpx
 import pytest
 import respx
+
 from app.core.config import settings
 from app.db.models import Result, Search, SourceEvent
 from app.sources.wikipedia import WIKIPEDIA_API_URL
-
 from tests.helpers import (
     mock_guardian_empty,
     mock_reddit_empty,

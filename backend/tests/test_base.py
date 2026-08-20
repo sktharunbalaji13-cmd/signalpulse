@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
 
 import pytest
-from app.sources.base import SourceResult
 from pydantic import ValidationError
+
+from app.sources.base import SourceResult
 
 
 def test_source_result_accepts_valid_fields():

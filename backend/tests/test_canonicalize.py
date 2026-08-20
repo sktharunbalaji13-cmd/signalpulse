@@ -1,6 +1,7 @@
 """Tests for URL/title canonicalization (M3-A1). Table-driven and deterministic."""
 
 import pytest
+
 from app.services.canonicalize import canonicalize_url, dedupe_key, normalize_title
 
 

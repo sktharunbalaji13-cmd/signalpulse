@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
+
 from app.sources.base import SourceError, SourceResult
 from app.sources.wikipedia import WIKIPEDIA_API_URL, WikipediaAdapter
 

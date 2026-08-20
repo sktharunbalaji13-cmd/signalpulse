@@ -10,6 +10,7 @@ cross-harness reproduction check lives in
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from app.services.freshness import (
     FRESHNESS_FLOOR,
     MISSING_TIMESTAMP_SCORE,
