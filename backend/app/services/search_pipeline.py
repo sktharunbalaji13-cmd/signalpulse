@@ -5,7 +5,17 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import log_event
 from app.db import session as db_session
-from app.db.models import Result, Search, SearchStatus, SourceEvent, utcnow
+from app.db.models import (
+    DuplicateGroup,
+    Result,
+    Search,
+    SearchStatus,
+    SourceEvent,
+    new_uuid,
+    utcnow,
+)
+from app.services.canonicalize import dedupe_key
+from app.services.dedup import Candidate, detect_duplicates, select_canonical
 from app.sources.base import SearchParams, SourceError
 from app.sources.registry import registry
 
@@ -101,6 +111,64 @@ async def _run_source(search: Search, source_name: str) -> dict:
             return {"name": display_name, "status": "failed", "error": "unexpected error"}
 
 
+def _annotate_duplicates(session: Session, search_id: str) -> dict:
+    """Annotate (never delete) duplicate relationships for a finished search.
+
+    Sets ``dedupe_key`` on every result, detects exact+fuzzy duplicates, picks a
+    deterministic canonical per group, and persists ``DuplicateGroup`` rows plus
+    the ``duplicate_group_id`` / ``is_duplicate`` columns on each member.
+    Returns a small stats dict for ``search.stats``.
+    """
+    results = (
+        session.query(Result)
+        .filter(Result.search_id == search_id)
+        .order_by(Result.source_name, Result.url)
+        .all()
+    )
+    for result in results:
+        result.dedupe_key = dedupe_key(result.url)
+
+    if len(results) < 2:
+        return {"groups": 0, "duplicates": 0}
+
+    candidates = [
+        Candidate(
+            id=result.id,
+            url=result.url,
+            title=result.title,
+            source_type=result.source_type,
+            published_at=result.published_at,
+            description=result.description,
+        )
+        for result in results
+    ]
+    groups = detect_duplicates(candidates)
+    candidate_by_id = {candidate.id: candidate for candidate in candidates}
+    result_by_id = {result.id: result for result in results}
+
+    duplicate_count = 0
+    for group in groups:
+        member_ids = list(group.members)
+        canonical_id = select_canonical([candidate_by_id[mid] for mid in member_ids])
+        group_id = new_uuid()
+        session.add(
+            DuplicateGroup(
+                id=group_id,
+                search_id=search_id,
+                canonical_result_id=canonical_id,
+                member_count=len(member_ids),
+                duplicate_evidence={"methods": sorted(group.methods)},
+            )
+        )
+        for member_id in member_ids:
+            result = result_by_id[member_id]
+            result.duplicate_group_id = group_id
+            result.is_duplicate = member_id != canonical_id
+        duplicate_count += len(member_ids) - 1
+
+    return {"groups": len(groups), "duplicates": duplicate_count}
+
+
 async def run_search_job(search_id: str) -> None:
     """Background job: run every enabled source concurrently, persist outcomes.
 
@@ -145,7 +213,8 @@ async def run_search_job(search_id: str) -> None:
         search.status = status
         search.completed_at = utcnow()
         search.duration_ms = int((monotonic() - started) * 1000)
-        search.stats = {"sources": source_statuses}
+        dedup_stats = _annotate_duplicates(session, search_id)
+        search.stats = {"sources": source_statuses, "dedup": dedup_stats}
         session.commit()
         log_event(
             "search_completed" if status == SearchStatus.COMPLETED.value else "search_failed",

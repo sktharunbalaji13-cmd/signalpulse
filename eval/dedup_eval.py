@@ -113,6 +113,7 @@ def evaluate() -> dict:
     gold_list = [tuple(sorted(p)) for p in all_gold]
     predicted_list = [tuple(sorted(p)) for p in all_predicted]
     result = metrics.dedup_metrics(gold_list, predicted_list, ambiguous)
+    ambiguous_unmerged = all(frozenset(pair) not in all_predicted for pair in ambiguous)
 
     return {
         "corpus_revision": data.revision,
@@ -120,6 +121,7 @@ def evaluate() -> dict:
         "gold_pair_count": len(all_gold),
         "ambiguous_pair_count": len(ambiguous),
         "predicted_pair_count": len(all_predicted),
+        "ambiguous_pairs_unmerged": ambiguous_unmerged,
         "metrics": result,
         "per_query": per_query,
     }
@@ -138,6 +140,7 @@ def _human_summary(report: dict) -> str:
         f"  recall     = {m['recall']:.4f}",
         f"  F1         = {m['f1']:.4f}",
         f"  (TP={m['true_positive']}, FP={m['false_positive']}, FN={m['false_negative']})",
+        f"  ambiguous pairs remain unmerged: {report['ambiguous_pairs_unmerged']}",
         "",
         "  per-query gold/predicted/caught/false:",
     ]

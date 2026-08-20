@@ -32,3 +32,8 @@ def test_dedup_eval_reports_expected_corpus_shape():
     assert report["gold_cluster_count"] == 17
     assert report["ambiguous_pair_count"] == 4
     assert len(report["per_query"]) == 16
+
+
+def test_ambiguous_pairs_remain_unmerged():
+    report = dedup_eval.evaluate()
+    assert report["ambiguous_pairs_unmerged"] is True

@@ -11,7 +11,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -58,9 +57,6 @@ class Search(Base):
 
 class Result(Base):
     __tablename__ = "results"
-    __table_args__ = (
-        UniqueConstraint("search_id", "dedupe_key", name="uq_results_search_dedupe"),
-    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     search_id: Mapped[str] = mapped_column(ForeignKey("searches.id"), index=True)
@@ -93,4 +89,24 @@ class SourceEvent(Base):
     error_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     quota_used: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DuplicateGroup(Base):
+    """A duplicate cluster: one canonical result plus its member results.
+
+    Deduplication annotates rather than deletes: every member keeps its own
+    ``Result`` row and simply points at this group. ``canonical_result_id`` is
+    the representative shown to users; ``duplicate_evidence`` records the
+    detection methods (``canonical_url`` / ``normalized_title`` / ``fuzzy_title``)
+    so every merge is explainable (PROJECT_SPEC.md §12, design §9).
+    """
+
+    __tablename__ = "duplicate_groups"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    search_id: Mapped[str] = mapped_column(ForeignKey("searches.id"), index=True)
+    canonical_result_id: Mapped[str] = mapped_column(ForeignKey("results.id"))
+    member_count: Mapped[int] = mapped_column(Integer)
+    duplicate_evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

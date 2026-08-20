@@ -60,6 +60,8 @@ class SearchResultItem(BaseModel):
     published_at: datetime | None = None
     retrieved_at: datetime
     language: str | None = None
+    is_duplicate: bool = False
+    duplicate_group_id: str | None = None
 
 
 class SearchResultsResponse(BaseModel):

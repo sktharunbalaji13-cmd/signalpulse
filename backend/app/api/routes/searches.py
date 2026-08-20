@@ -127,6 +127,8 @@ async def get_search_results(
             published_at=row.published_at,
             retrieved_at=row.retrieved_at,
             language=row.language,
+            is_duplicate=row.is_duplicate,
+            duplicate_group_id=row.duplicate_group_id,
         )
         for row in rows
     ]
