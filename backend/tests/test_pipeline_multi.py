@@ -3,11 +3,11 @@ from time import monotonic
 
 import pytest
 import respx
-
 from app.core.config import settings
 from app.db.models import Result, Search, SourceEvent
 from app.services.search_pipeline import run_search_job
 from app.sources.registry import registry
+
 from tests.helpers import (
     mock_guardian_api_key_error,
     mock_guardian_success,

@@ -3,7 +3,6 @@ from pathlib import Path
 
 import httpx
 import respx
-
 from app.sources.wikipedia import WIKIPEDIA_API_URL
 
 FIXTURES = Path(__file__).parent / "fixtures"

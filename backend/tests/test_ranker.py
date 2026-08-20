@@ -7,7 +7,6 @@ relevance core); these tests pin the experimental implementation only.
 from datetime import UTC, datetime
 
 import pytest
-
 from app.services.ranker import (
     BM25Field,
     RankCandidate,
