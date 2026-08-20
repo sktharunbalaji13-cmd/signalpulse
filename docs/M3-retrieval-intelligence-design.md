@@ -102,6 +102,38 @@ Rules (non-negotiable):
 | Reference (Wikipedia) | **constant 0.5** |
 | News/social missing `published_at` | **0.25** (poor, not zero; UI shows "no timestamp") |
 
+### 4.1 M3-C experiment — candidate functions, design + independent measurement only
+
+The production freshness scorer is **not implemented yet**. Before choosing a
+function, candidates are measured independently in `eval/freshness_eval.py` —
+no clock, no randomness, fixed "now" = corpus `RETRIEVED`; nothing combined
+with relevance; nothing wired:
+
+- **Admissibility gate:** every candidate must pass `metrics.check_freshness`
+  (missing handled, `retrieved_at` never substitutes for `published_at`,
+  monotonic with age, future timestamps clamped).
+- **Corpus behaviour:** per-source-type score distributions on the unchanged v2
+  corpus, effective separation between freshest and oldest items, and the two
+  tensions: very-recent-but-weakly-relevant items (rel-0 "Update" decoys, which
+  are the freshest items) and older-but-relevant items.
+- **Controlled probes at fixed timestamps:** decay curves over 0 h … 2 y,
+  future clamp, old authoritative reference material (2-year-old timestamp
+  still constant), missing timestamps, `retrieved_at` invariance. The corpus
+  timestamps span only ~6 days, so long-age behaviour is measured by probes,
+  not by corpus items — **no corpus change**.
+- **Interaction with relevance (analysis only, no combination):** Spearman
+  correlation between candidate freshness and gold relevance, overall and per
+  source type. Freshness must not encode relevance; where tension exists
+  (e.g. the decoys), M3-D combination will have to handle it explicitly.
+- **Candidates** (full list in `eval/freshness_eval.py`): the §4 curve itself,
+  a no-freshness control, decay shape (exponential / linear-30d / step),
+  half-life choices (6 h / 12 h / 24 h / 48 h / 7 d), floor choices
+  (0.0 / 0.05 / 0.25), reference level (0.5 / 0.9), missing-timestamp levels
+  (0.0 / 0.25 / 0.5), and social half-life alternatives (12 h / 24 h).
+
+The report (`eval/reports/freshness_eval.md`) is the input to the M3-C
+accept/reject decision on which function, if any, behaves sensibly by itself.
+
 ## 5. M3-D — Final ranking
 
 ```

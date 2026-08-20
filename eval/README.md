@@ -114,7 +114,10 @@ Deduplication (over non-ambiguous pairs): **precision, recall, F1** —
 
 Freshness: `check_freshness()` enforces the M3-C invariants
 (monotonic with age, no fabricated timestamp, `retrieved_at` never substitutes,
-future timestamps clamped, per-source-type behaviour).
+future timestamps clamped, per-source-type behaviour). The M3-C experiment
+(`eval/freshness_eval.py`) measures candidate freshness functions
+independently — no production scorer, no combination with relevance — and
+writes `eval/reports/freshness_eval.md` (run `python -m eval.freshness_eval`).
 
 ## Baseline
 
