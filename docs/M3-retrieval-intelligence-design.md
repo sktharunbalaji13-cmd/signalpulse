@@ -133,6 +133,7 @@ On `GET /api/v1/searches/{id}/results` (query params, repo layer, zero schema ch
 ## 9. Database changes
 
 - Activate dormant columns: `dedupe_key`, `rank_score`, `rank_components`, `duplicate_group_id`, `is_duplicate`.
+- `dedupe_key` is **not** a uniqueness constraint (the original `UNIQUE (search_id, dedupe_key)` was removed, ADR 0006). It identifies a canonicalized URL for deduplication; multiple result rows within the same search may legitimately share a key because duplicates are annotated rather than deleted. Uniqueness of the representative is preserved by the detector: each `DuplicateGroup` has exactly one canonical member.
 - New table `duplicate_groups` (justified: it is the provenance container preserving contributing sources; JSON-on-row would be denormalized and have no FK): `id`, `search_id` FK, `canonical_result_id` FK→results, `member_count`, `duplicate_evidence` JSON, `created_at`.
 - Index `(search_id, rank_score)` on results. No Alembic until M4; dev schema via `create_all`.
 

@@ -266,18 +266,23 @@ results
   published_at  datetime   -- may be NULL (flag it, don't guess)
   retrieved_at  datetime   -- when WE fetched it
   language      text
-  dedupe_key    text       -- sha256 of canonical URL (unique with search_id)
+  dedupe_key    text       -- sha256 of canonical URL; identifies a canonicalized
+                             URL for deduplication. NOT unique: several rows within
+                             one search may legitimately share it (duplicates are
+                             annotated, not deleted — ADR 0006).
   rank_score    float
   rank_components  json    -- text/freshness/source sub-scores (transparency)
   duplicate_group_id  uuid NULL
   is_duplicate  bool       -- True for non-canonical members
   raw           json       -- original API payload, preserved for audit
-  UNIQUE (search_id, dedupe_key)
 
-duplicate_groups
+duplicate_groups        -- the provenance container for each duplicate cluster
   id            uuid  PK
-  canonical_result_id  uuid  FK → results
+  search_id     uuid  FK → searches
+  canonical_result_id  uuid  FK → results  -- the representative shown to users
   member_count  int
+  duplicate_evidence  json                 -- methods that produced the merge
+  created_at    datetime
 
 source_events            -- per-source health/observability
   id            uuid  PK
