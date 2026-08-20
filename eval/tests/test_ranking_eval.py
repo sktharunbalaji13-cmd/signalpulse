@@ -4,11 +4,18 @@ The behavioural acceptance probes (P1-P9) are the admissibility bar: every
 candidate must pass all of them. Corpus metrics are secondary evidence only
 (the v2 corpus cannot isolate freshness from relevance, M3-C rho ~ 0.41) and
 are pinned here to detect regressions, not to tune weights.
+
+The M3-D production ranker (``app.services.ranking``, C4) must reproduce the
+accepted candidate's behaviour bit-for-bit over the unchanged corpus.
 """
 
 import hashlib
+import sys
+from pathlib import Path
 
+from eval import corpus
 from eval import ranking_eval as re
+from eval.schema import _parse_ts
 
 ALL_PROBES = [
     "P1",
@@ -131,3 +138,66 @@ def test_all_candidates_rank_are_total_orders():
         assert len(ranked) == 4
         assert set(ranked) == {"a", "b", "c", "d"}
         assert len(set(ranked)) == 4
+
+
+# --- Production ranker reproduction (C4) --------------------------------------
+
+
+def _production_ranking():
+    backend_dir = Path(__file__).resolve().parents[2] / "backend"
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    from app.services import ranking  # noqa: PLC0415
+
+    return ranking
+
+
+def _production_rank(query, ranking):
+    fixed_now = _parse_ts(corpus.RETRIEVED)
+    items = [
+        ranking.Rankable(
+            id=item.id,
+            title=item.title,
+            description=item.description,
+            source_type=item.source_type,
+            source_name=item.source_name,
+            published_at=_parse_ts(item.published_at) if item.published_at else None,
+            url=item.url,
+        )
+        for item in query.items
+    ]
+    return ranking.rank_items(items, query.query, now=fixed_now)
+
+
+def test_production_ranker_reproduces_c4_order_and_scores_bit_for_bit():
+    ranking = _production_ranking()
+    corpus_data = re._build_corpus()
+    for query in corpus_data.queries:
+        expected = re.rank_combined(query.items, query.query, re.CANDIDATES["C4_design_diversity"])
+        expected_ids = [row["id"] for row in expected]
+        expected_scores = {row["id"]: row["score"] for row in expected}
+        got = _production_rank(query, ranking)
+        assert [row.id for row in got] == expected_ids, query.id
+        for row in got:
+            assert row.score == expected_scores[row.id], (query.id, row.id)
+
+
+def test_production_ranker_reproduces_c4_corpus_metrics():
+    ranking = _production_ranking()
+    corpus_data = re._build_corpus()
+    per_query = {}
+    for query in corpus_data.queries:
+        relevance = {item.id: item.relevance for item in query.items}
+        ranked = [row.id for row in _production_rank(query, ranking)]
+        per_query[query.id] = re.metrics.ranking_metrics(ranked, relevance)
+    import statistics
+
+    def mean(key: str) -> float:
+        return statistics.mean(per_query[q][key] for q in per_query)
+
+    c4 = re._corpus_measurement()["means"]["C4_design_diversity"]
+    assert abs(mean("ndcg_at_10") - c4["ndcg_at_10"]) < 1e-12
+    assert abs(mean("precision_at_10") - c4["precision_at_10"]) < 1e-12
+    assert abs(mean("reciprocal_rank") - c4["reciprocal_rank"]) < 1e-12
+    assert abs(mean("ndcg_at_10") - 0.7850) < 1e-4
+    assert abs(mean("precision_at_10") - 0.8688) < 1e-4

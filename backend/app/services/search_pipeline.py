@@ -16,6 +16,7 @@ from app.db.models import (
 )
 from app.services.canonicalize import dedupe_key
 from app.services.dedup import Candidate, detect_duplicates, select_canonical
+from app.services.ranking import Rankable, rank_items
 from app.sources.base import SearchParams, SourceError
 from app.sources.registry import registry
 
@@ -169,6 +170,53 @@ def _annotate_duplicates(session: Session, search_id: str) -> dict:
     return {"groups": len(groups), "duplicates": duplicate_count}
 
 
+def _apply_ranking(session: Session, search_id: str) -> dict:
+    """Rank all results of a finished search with the M3-D C4 model.
+
+    Persists ``rank_score`` and ``rank_components`` on every ``Result`` row
+    (design §5: activate the dormant columns). The results endpoint then
+    serves rows in rank order with the same total order as the ranker.
+    """
+    search = session.get(Search, search_id)
+    if search is None:
+        return {"ranked": 0}
+    results = (
+        session.query(Result)
+        .filter(Result.search_id == search_id)
+        .order_by(Result.id)
+        .all()
+    )
+    if not results:
+        return {"ranked": 0}
+    results_by_id = {result.id: result for result in results}
+    rankables = [
+        Rankable(
+            id=result.id,
+            title=result.title,
+            description=result.description,
+            source_type=result.source_type,
+            source_name=result.source_name,
+            published_at=result.published_at,
+            url=result.url,
+            duplicate_group_id=result.duplicate_group_id,
+            is_duplicate=result.is_duplicate,
+        )
+        for result in results
+    ]
+    ranked = rank_items(rankables, search.query, now=utcnow())
+    for position, row in enumerate(ranked):
+        result = results_by_id[row.id]
+        result.rank_position = position
+        result.rank_score = row.score
+        result.rank_components = {
+            "relevance": row.relevance,
+            "freshness": row.freshness,
+            "quality": row.quality,
+        }
+    session.commit()
+    return {"ranked": len(ranked)}
+
+
 async def run_search_job(search_id: str) -> None:
     """Background job: run every enabled source concurrently, persist outcomes.
 
@@ -214,7 +262,8 @@ async def run_search_job(search_id: str) -> None:
         search.completed_at = utcnow()
         search.duration_ms = int((monotonic() - started) * 1000)
         dedup_stats = _annotate_duplicates(session, search_id)
-        search.stats = {"sources": source_statuses, "dedup": dedup_stats}
+        ranking_stats = _apply_ranking(session, search_id)
+        search.stats = {"sources": source_statuses, "dedup": dedup_stats, "ranking": ranking_stats}
         session.commit()
         log_event(
             "search_completed" if status == SearchStatus.COMPLETED.value else "search_failed",

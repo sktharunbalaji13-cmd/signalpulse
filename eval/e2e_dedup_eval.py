@@ -241,12 +241,13 @@ def evaluate() -> dict:
                 payload = response.json()
                 api_items = payload["items"]
                 api_verified = api_verified and len(api_items) == len(results)
-                for row, item in zip(results, api_items, strict=True):
-                    api_verified = (
-                        api_verified
-                        and item["is_duplicate"] == row.is_duplicate
-                        and item["duplicate_group_id"] == row.duplicate_group_id
-                    )
+                # order-independent: the API now returns results in rank order
+                # and some duplicate groups share a URL (URL-only exact dupes)
+                api_sig = sorted(
+                    (i["is_duplicate"], i["duplicate_group_id"] or "") for i in api_items
+                )
+                row_sig = sorted((r.is_duplicate, r.duplicate_group_id or "") for r in results)
+                api_verified = api_verified and api_sig == row_sig
 
                 item_ids = {item.id for item in query.items}
                 gold = _gold_pairs_for_query(data.duplicate_groups, item_ids)

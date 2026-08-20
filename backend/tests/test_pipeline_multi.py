@@ -278,6 +278,64 @@ def test_reddit_results_persisted_as_canonical_source_result(
         assert first.raw["score"] == 1234
 
 
+# --- M3-D ranking integration -------------------------------------------------
+
+
+@respx.mock
+def test_ranking_persists_scores_and_orders_results(
+    client, session_factory, guardian_key, reddit_creds
+):
+    mock_wikipedia_success()
+    mock_guardian_success()
+    mock_reddit_success()
+    search_id = create_search(client)
+
+    body = client.get(f"/api/v1/searches/{search_id}").json()
+    assert body["status"] == "completed"
+
+    with session_factory() as session:
+        rows = (
+            session.query(Result).filter_by(search_id=search_id).order_by(Result.id).all()
+        )
+        assert len(rows) == 6
+        for row in rows:
+            assert row.rank_score is not None
+            assert row.rank_position is not None
+            assert set(row.rank_components) == {"relevance", "freshness", "quality"}
+        search = session.get(Search, search_id)
+        assert search.stats["ranking"] == {"ranked": 6}
+        positions = sorted((row.rank_position, row.id) for row in rows)
+        assert [p for p, _ in positions] == list(range(6))
+
+    results = client.get(f"/api/v1/searches/{search_id}/results?per_page=100").json()
+    with session_factory() as session:
+        rows = session.query(Result).filter_by(search_id=search_id).all()
+        by_url = {row.url: row for row in rows}
+    returned_urls = [item["url"] for item in results["items"]]
+    assert [by_url[u].rank_position for u in returned_urls] == sorted(
+        by_url[u].rank_position for u in returned_urls
+    )
+    assert results["total"] == 6
+
+
+@respx.mock
+def test_results_endpoint_order_matches_ranker_order(
+    client, session_factory, guardian_key, reddit_creds
+):
+    mock_wikipedia_success()
+    mock_guardian_success()
+    mock_reddit_success()
+    search_id = create_search(client)
+    client.get(f"/api/v1/searches/{search_id}").json()
+
+    results = client.get(f"/api/v1/searches/{search_id}/results?per_page=100").json()
+    urls = [item["url"] for item in results["items"]]
+    with session_factory() as session:
+        rows = session.query(Result).filter_by(search_id=search_id).all()
+        ranker_order = sorted(rows, key=lambda r: r.rank_position)
+    assert urls == [row.url for row in ranker_order]
+
+
 # --- Concurrent fan-out -------------------------------------------------------
 
 

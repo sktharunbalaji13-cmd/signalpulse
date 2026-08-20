@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -57,6 +58,7 @@ class Search(Base):
 
 class Result(Base):
     __tablename__ = "results"
+    __table_args__ = (Index("ix_results_search_rank", "search_id", "rank_score"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     search_id: Mapped[str] = mapped_column(ForeignKey("searches.id"), index=True)
@@ -72,6 +74,7 @@ class Result(Base):
     dedupe_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     rank_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     rank_components: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    rank_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duplicate_group_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
     raw: Mapped[dict] = mapped_column(JSON)

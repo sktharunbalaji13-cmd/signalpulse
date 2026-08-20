@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.logging import log_event
@@ -106,11 +106,24 @@ async def get_search_results(
 ) -> SearchResultsResponse:
     _get_search_or_404(session, search_id)
     total = _count_results(session, search_id)
+    # M3-D: serve results in the ranker's final order (rank_position, the
+    # C4 total order incl. the diversity pass). Unranked rows (search still
+    # running) fall back to the tie-break keys, deterministically.
     rows = (
         session.scalars(
             select(Result)
             .where(Result.search_id == search_id)
-            .order_by(Result.id)
+            .order_by(
+                Result.rank_position.asc().nullslast(),
+                case(
+                    (Result.source_type == "news", 0),
+                    (Result.source_type == "social", 1),
+                    (Result.source_type == "reference", 2),
+                    else_=9,
+                ),
+                Result.published_at.desc().nullslast(),
+                Result.url,
+            )
             .offset((page - 1) * per_page)
             .limit(per_page)
         )

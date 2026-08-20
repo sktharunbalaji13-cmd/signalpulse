@@ -240,7 +240,7 @@ On `GET /api/v1/searches/{id}/results` (query params, repo layer, zero schema ch
 - **M3-A**: `dedupe_key` set on every row; table-driven canonicalization passes; dedup P/R ≥ 0.90 (target, reported honestly) on offline eval; every group has evidence; zero rows deleted; determinism green; `duplicate_groups` table justified and created.
 - **M3-B**: nDCG@10 ≥ 0.75 (target) on offline eval; `rank_components` populated and interpretable.
 - **M3-C**: per-type curves unit-tested; no fabricated timestamps (property test); GDELT `seendate` remains untrusted.
-- **M3-D**: shuffled-arrival determinism green; weights in config + components; diversity pass bounded and toggleable; existing tests green.
+- **M3-D** (CLOSED): C4 accepted as the production model; `app/services/ranking.py` implements it unchanged (validated weights, diversity pass, deterministic total order, duplicate awareness); pipeline persists `rank_score`/`rank_components`/`rank_position` at completion; results endpoint serves rank order; all 9 behavioural probes pass through the production ranker and the production ranker reproduces C4's corpus behaviour bit-for-bit. BM25 is NOT used (ADR 0007).
 - **M3-E**: filter semantics per design on mocked data.
 - **Global**: no new network calls, no LLM/RAG/agents/caching/Redis/Celery; ruff clean; CI green.
 
