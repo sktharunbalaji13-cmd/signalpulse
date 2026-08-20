@@ -24,9 +24,18 @@ Design notes
   Gold duplicate data is expressed as **clusters** (one per underlying story) in
   ``DUPLICATE_GROUPS`` plus a separate ``AMBIGUOUS_PAIRS`` list of judgment calls
   (excluded from dedup scoring).
+
+* ``REVISION = 2``. Revision 2 added near-miss and ambiguous-entity distractors
+  (see ``_NEAR_MISS_ADDITIONS`` and query ``q16_juniper_ai``) to make the corpus
+  reflect realistic search ambiguity. The v1 items are unchanged above.
 """
 
 RETRIEVED = "2026-08-19T12:00:00Z"
+
+# Corpus revision. Bump when gold labels / items change. Revision history:
+#   1 — original M3-A0 corpus (15 queries, 300 items).
+#   2 — added near-miss + ambiguous-entity distractors (see README "Revision history").
+REVISION = 2
 
 _GUARDIAN = "The Guardian"
 _WIRE = "Global Wire"
@@ -445,6 +454,126 @@ QUERIES = [
     },
 ]
 
+# --- Revision 2: near-miss and ambiguous-entity distractors -------------------
+# Added to represent realistic search ambiguity (topically related but not
+# answering the query). Kept separate from the v1 items above so the change is
+# traceable. Near-miss items deliberately share exact query tokens in their
+# titles while being gold relevance 0 or 1 — the naive lexical baseline cannot
+# tell them apart from truly relevant results, which is the point.
+_NEAR_MISS_ADDITIONS = {
+    "q01_ev_battery_recycling": [
+        it("q01_21", "Electric vehicle battery warranty claims rise", "https://news.example/ev/battery-warranty-claims", "news", _GUARDIAN, 0, desc="Owners report warranty issues with new packs.", pub="2026-08-17T11:00:00Z"),
+        it("q01_22", "Battery recycling conference opens next week", "https://news.example/ev/recycling-conference", "news", _GUARDIAN, 1, desc="Industry event agenda announced.", pub="2026-08-18T14:00:00Z"),
+        it("q01_23", "Vehicle recycling program expands for old cars", "https://news.example/transport/vehicle-scrappage", "news", _GUARDIAN, 0, desc="Scrappage scheme for conventional cars.", pub="2026-08-16T09:00:00Z"),
+    ],
+    "q02_quantum_computing": [
+        it("q02_21", "Quantum computing stocks rally after earnings", "https://news.example/finance/quantum-stocks-rally", "news", _GUARDIAN, 0, desc="Sector shares rise on quarterly results.", pub="2026-08-18T15:00:00Z"),
+        it("q02_22", "Breakthrough in computing energy efficiency reported", "https://wire.example/story/computing-efficiency-breakthrough", "news", _WIRE, 1, desc="Classical chips use far less power.", pub="2026-08-17T12:00:00Z"),
+        it("q02_23", "Computing giant announces new data centres", "https://news.example/tech/computing-data-centres", "news", _GUARDIAN, 0, desc="Infrastructure expansion, no quantum link.", pub="2026-08-16T10:00:00Z"),
+    ],
+    "q03_renewable_grid_storage": [
+        it("q03_21", "Grid storage provider changes chief executive", "https://wire.example/story/grid-storage-ceo-change", "news", _WIRE, 0, desc="Leadership change at a storage company.", pub="2026-08-17T11:00:00Z"),
+        it("q03_22", "Renewable energy conference opens in the capital", "https://news.example/energy/renewable-conference", "news", _GUARDIAN, 1, desc="Industry gathering agenda.", pub="2026-08-18T09:00:00Z"),
+        it("q03_23", "Energy storage tips for households", "https://tech.example/guides/home-energy-storage-tips", "news", _GUARDIAN, 0, desc="Consumer home-storage advice.", pub="2026-08-15T11:00:00Z"),
+    ],
+    "q04_ai_regulation": [
+        it("q04_21", "AI regulation debated at annual tech conference", "https://news.example/tech/ai-regulation-conference", "news", _GUARDIAN, 1, desc="Panel discussion at an industry event.", pub="2026-08-17T14:00:00Z"),
+        it("q04_22", "Framework for AI ethics proposed by university", "https://wire.example/story/university-ai-ethics-framework", "news", _WIRE, 1, desc="Academic proposal, not binding regulation.", pub="2026-08-16T11:00:00Z"),
+        it("q04_23", "EU announces agricultural regulation changes", "https://news.example/politics/eu-agriculture-regulation", "news", _GUARDIAN, 0, desc="Farm policy, unrelated to AI.", pub="2026-08-17T09:00:00Z"),
+    ],
+    "q05_space_telescope": [
+        it("q05_21", "Space telescope launch delayed to next year", "https://news.example/science/telescope-launch-delay", "news", _GUARDIAN, 0, desc="Launch schedule slip.", pub="2026-08-17T10:00:00Z"),
+        it("q05_22", "Telescope time allocations announced for scientists", "https://wire.example/story/telescope-time-allocation", "news", _WIRE, 1, desc="Observing time awarded, no discovery.", pub="2026-08-16T09:00:00Z"),
+        it("q05_23", "Discovery channel documentary wins award", "https://news.example/entertainment/discovery-award", "news", _GUARDIAN, 0, desc="Television award, unrelated to astronomy.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q06_monetary_policy": [
+        it("q06_21", "Central bank governor to give keynote address", "https://news.example/economy/governor-keynote", "news", _GUARDIAN, 0, desc="Speaking engagement, not a policy decision.", pub="2026-08-17T09:00:00Z"),
+        it("q06_22", "Bank announces decision on interest-free loans", "https://wire.example/story/interest-free-loan-decision", "news", _WIRE, 1, desc="Retail loan product decision.", pub="2026-08-16T10:00:00Z"),
+        it("q06_23", "Interest rate on student savings account changes", "https://news.example/finance/student-savings-rate", "news", _GUARDIAN, 0, desc="Consumer account rate change.", pub="2026-08-15T09:00:00Z"),
+    ],
+    "q07_crypto_volatility": [
+        it("q07_21", "Cryptocurrency market sees wave of new listings", "https://news.example/finance/crypto-new-listings", "news", _GUARDIAN, 0, desc="New tokens listed, not about volatility.", pub="2026-08-17T10:00:00Z"),
+        it("q07_22", "Volatility index methodology updated by exchange", "https://wire.example/story/volatility-index-methodology", "news", _WIRE, 1, desc="Technical index change.", pub="2026-08-16T11:00:00Z"),
+        it("q07_23", "Market holidays announced for the quarter", "https://news.example/finance/market-holidays", "news", _GUARDIAN, 0, desc="Trading calendar, unrelated to crypto.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q08_climate_adaptation": [
+        it("q08_21", "Coastal city approves new marina development", "https://news.example/local/coastal-marina-approved", "news", _GUARDIAN, 0, desc="Waterfront development approval.", pub="2026-08-17T09:00:00Z"),
+        it("q08_22", "Climate adaptation conference held this week", "https://wire.example/story/climate-adaptation-conference", "news", _WIRE, 1, desc="Conference on adaptation, no city plan.", pub="2026-08-16T10:00:00Z"),
+        it("q08_23", "City centre regeneration project unveiled", "https://news.example/local/city-regeneration", "news", _GUARDIAN, 0, desc="Urban renewal, not coastal adaptation.", pub="2026-08-15T09:00:00Z"),
+    ],
+    "q09_warehouse_robotics": [
+        it("q09_21", "Warehouse robotics company files for public listing", "https://wire.example/story/warehouse-robotics-ipo", "news", _WIRE, 0, desc="IPO filing, not an automation milestone.", pub="2026-08-17T10:00:00Z"),
+        it("q09_22", "Automation survey reveals worker concerns", "https://news.example/tech/automation-worker-survey", "news", _GUARDIAN, 1, desc="Survey on automation sentiment.", pub="2026-08-16T09:00:00Z"),
+        it("q09_23", "Warehouse safety inspections increase this year", "https://news.example/business/warehouse-safety-inspections", "news", _GUARDIAN, 0, desc="Safety inspections, no robotics.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q10_vaccine_logistics": [
+        it("q10_21", "Cold chain logistics firm expands delivery fleet", "https://wire.example/story/cold-chain-fleet-expansion", "news", _WIRE, 0, desc="Fleet growth, not vaccine-specific.", pub="2026-08-17T09:00:00Z"),
+        it("q10_22", "Vaccine hesitancy study published this week", "https://news.example/health/vaccine-hesitancy-study", "news", _GUARDIAN, 1, desc="Public health study, not logistics.", pub="2026-08-16T10:00:00Z"),
+        it("q10_23", "Cold weather warning issued for the weekend", "https://news.example/weather/cold-warning", "news", _GUARDIAN, 0, desc="Weather forecast, unrelated.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q11_semiconductor_policy": [
+        it("q11_21", "Semiconductor firm reports export revenue growth", "https://news.example/finance/semi-export-revenue", "news", _GUARDIAN, 0, desc="Earnings, not export policy.", pub="2026-08-17T10:00:00Z"),
+        it("q11_22", "Export controls seminar held for trade lawyers", "https://wire.example/story/export-controls-seminar", "news", _WIRE, 1, desc="Legal training event.", pub="2026-08-16T09:00:00Z"),
+        it("q11_23", "Controls on tobacco advertising tightened", "https://news.example/health/tobacco-advertising-controls", "news", _GUARDIAN, 0, desc="Public health controls, unrelated.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q12_ocean_plastic": [
+        it("q12_21", "Ocean plastic waste statistics revised downward", "https://news.example/environment/ocean-plastic-statistics", "news", _GUARDIAN, 0, desc="Data revision, not cleanup tech.", pub="2026-08-17T09:00:00Z"),
+        it("q12_22", "Cleanup technology startup pivots to river waste", "https://wire.example/story/cleanup-tech-pivot", "news", _WIRE, 1, desc="Company pivot toward rivers.", pub="2026-08-16T10:00:00Z"),
+        it("q12_23", "Plastic packaging tax comes into force", "https://news.example/politics/plastic-packaging-tax", "news", _GUARDIAN, 0, desc="Tax policy, not ocean cleanup.", pub="2026-08-15T09:00:00Z"),
+    ],
+    "q13_ar_workplace": [
+        it("q13_21", "Augmented reality gaming platform launches today", "https://news.example/tech/ar-gaming-launch", "news", _GUARDIAN, 0, desc="Consumer gaming, not workplace.", pub="2026-08-17T10:00:00Z"),
+        it("q13_22", "Workplace training budgets rise this year", "https://news.example/business/training-budgets-rise", "news", _GUARDIAN, 1, desc="Training spend trends, no AR.", pub="2026-08-16T09:00:00Z"),
+        it("q13_23", "Reality TV show returns for new season", "https://news.example/entertainment/reality-tv-return", "news", _GUARDIAN, 0, desc="Television, unrelated.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q14_cybersecurity_breach": [
+        it("q14_21", "Cybersecurity breach insurance premiums climb", "https://news.example/finance/breach-insurance-premiums", "news", _GUARDIAN, 0, desc="Insurance pricing, not a breach.", pub="2026-08-17T10:00:00Z"),
+        it("q14_22", "Disclosure rules for ESG reporting updated", "https://wire.example/story/esg-disclosure-rules", "news", _WIRE, 1, desc="ESG disclosure, not security.", pub="2026-08-16T09:00:00Z"),
+        it("q14_23", "Breach of contract lawsuit settled out of court", "https://news.example/business/contract-breach-settled", "news", _GUARDIAN, 0, desc="Legal dispute, not cybersecurity.", pub="2026-08-15T08:00:00Z"),
+    ],
+    "q15_fusion_energy": [
+        it("q15_21", "Fusion restaurant wins energy efficiency award", "https://news.example/food/fusion-restaurant-award", "news", _GUARDIAN, 0, desc="Restaurant award, not nuclear fusion.", pub="2026-08-17T09:00:00Z"),
+        it("q15_22", "Energy company passes safety milestone", "https://wire.example/story/energy-safety-milestone", "news", _WIRE, 1, desc="Safety record milestone.", pub="2026-08-16T10:00:00Z"),
+        it("q15_23", "Milestone birthday celebrations across the country", "https://news.example/lifestyle/milestone-birthdays", "news", _GUARDIAN, 0, desc="Birthday feature, unrelated.", pub="2026-08-15T08:00:00Z"),
+    ],
+}
+
+for _query in QUERIES:
+    _query["items"].extend(_NEAR_MISS_ADDITIONS.get(_query["id"], []))
+
+# Revision 2: an ambiguous-entity query. "juniper" is simultaneously a fictional
+# tech company (Juniper AI) and a plant; "AI" is a common term. This is the
+# "Apple AI" pattern from the design discussion, expressed with a fictional
+# entity to avoid claiming real-world events.
+QUERIES.append(
+    {
+        "id": "q16_juniper_ai",
+        "query": "juniper AI",
+        "items": [
+            it("q16_01", "Juniper AI unveils new assistant features", "https://news.example/tech/juniper-ai-assistant", "news", _GUARDIAN, 2, desc="The company announced new capabilities for its AI assistant.", pub="2026-08-18T08:00:00Z"),
+            it("q16_02", "Juniper AI launches upgraded assistant", "https://wire.example/story/juniper-ai-upgraded-assistant", "news", _WIRE, 2, desc="Wire version of the assistant launch.", pub="2026-08-18T07:50:00Z"),
+            it("q16_03", "Juniper AI assistant hands-on review", "https://news.example/tech/juniper-ai-review", "news", _GUARDIAN, 1, desc="Review of the new assistant.", pub="2026-08-18T09:00:00Z"),
+            it("q16_04", "Juniper AI startup raises new funding round", "https://wire.example/story/juniper-ai-funding", "news", _WIRE, 2, desc="Funding round for the AI startup.", pub="2026-08-17T12:00:00Z"),
+            it("q16_05", "Juniper AI", "https://en.wikipedia.example/wiki/Juniper_AI", "reference", _WIKI, 1, desc="Overview of the fictional company Juniper AI.", pub=None),
+            it("q16_06", "Juniper", "https://en.wikipedia.example/wiki/Juniper", "reference", _WIKI, 0, desc="The coniferous plant genus Juniperus.", pub=None),
+            it("q16_07", "How to grow a juniper bonsai", "https://news.example/home/juniper-bonsai", "news", _GUARDIAN, 0, desc="Gardening guide for juniper bonsai trees.", pub="2026-08-15T09:00:00Z"),
+            it("q16_08", "Juniper berries harvested for gin production", "https://news.example/food/juniper-berries-gin", "news", _GUARDIAN, 0, desc="Botanical harvest used in gin.", pub="2026-08-14T10:00:00Z"),
+            it("q16_09", "r/technology: Juniper AI assistant AMA", "https://reddit.example/r/technology/comments/abc032/juniper_ai_ama", "social", _RTECH, 1, desc="Ask-me-anything about the assistant.", pub="2026-08-18T10:00:00Z"),
+            it("q16_10", "r/gardening: my juniper is turning brown", "https://reddit.example/r/gardening/comments/abc033/juniper_brown", "social", _RSCI, 0, desc="Gardening thread about a sick juniper.", pub="2026-08-16T12:00:00Z"),
+            it("q16_11", "AI chip shortage hits smartphone makers", "https://news.example/tech/ai-chip-shortage", "news", _GUARDIAN, 0, desc="Chip shortage, not Juniper AI.", pub="2026-08-17T11:00:00Z"),
+            it("q16_12", "Juniper announces new laptop lineup", "https://wire.example/story/juniper-laptops", "news", _WIRE, 0, desc="Hardware launch, no AI.", pub="2026-08-16T09:00:00Z"),
+            it("q16_13", "Juniper AI updates privacy policy", "https://news.example/tech/juniper-ai-privacy", "news", _GUARDIAN, 1, desc="Policy update for the assistant.", pub="2026-08-18T11:00:00Z"),
+            it("q16_14", "Gin distillery opens using foraged juniper", "https://news.example/food/gin-distillery-juniper", "news", _GUARDIAN, 0, desc="Distillery using juniper botanicals.", pub="2026-08-15T08:00:00Z"),
+            it("q16_15", "Artificial intelligence", "https://en.wikipedia.example/wiki/Artificial_intelligence", "reference", _WIKI, 1, desc="Broad reference on AI.", pub=None),
+            it("q16_16", "r/MachineLearning: does Juniper AI live up to the hype?", "https://reddit.example/r/technology/comments/abc034/juniper_ai_hype", "social", _RTECH, 1, desc="Discussion of the company's claims.", pub="2026-08-18T09:30:00Z"),
+            it("q16_17", "AI art generator goes viral", "https://news.example/tech/ai-art-generator", "news", _GUARDIAN, 0, desc="Unrelated AI app.", pub="2026-08-17T10:00:00Z"),
+            it("q16_18", "Juniper AI opens new research lab", "https://wire.example/story/juniper-ai-research-lab", "news", _WIRE, 2, desc="Expansion of the AI lab.", pub="2026-08-18T08:30:00Z"),
+            it("q16_19", "Juniper hedge trim guide for autumn", "https://news.example/home/juniper-hedge-trim", "news", _GUARDIAN, 0, desc="Gardening guide, not the company.", pub="2026-08-13T09:00:00Z"),
+            it("q16_20", "r/AskCulinary: juniper berry substitutes", "https://reddit.example/r/cooking/comments/abc035/juniper_substitutes", "social", _RSCI, 0, desc="Cooking question about juniper berries.", pub="2026-08-15T12:00:00Z"),
+        ],
+    }
+)
+
 # Gold duplicate clusters: one cluster per underlying story. Each cluster
 # contains all items that describe the same page/story. ``label`` documents the
 # relationship kinds demonstrated (exact URL, cross-outlet, AMP/mobile, URL
@@ -466,6 +595,7 @@ DUPLICATE_GROUPS = [
     {"id": "g_q13_ar", "label": "AR onboarding training (cross-outlet + URL variant + boilerplate + AMP + fragment)", "members": ["q13_01", "q13_02", "q13_08", "q13_10", "q13_15", "q13_18"]},
     {"id": "g_q14_breach", "label": "retailer data breach (cross-outlet + URL variant + boilerplate + AMP + fragment)", "members": ["q14_01", "q14_02", "q14_08", "q14_10", "q14_15", "q14_18"]},
     {"id": "g_q15_fusion", "label": "fusion sustained reaction (cross-outlet + URL variant + boilerplate + mobile + fragment)", "members": ["q15_01", "q15_02", "q15_09", "q15_11", "q15_16", "q15_19"]},
+    {"id": "g_q16_juniper", "label": "Juniper AI assistant launch (cross-outlet)", "members": ["q16_01", "q16_02"]},
 ]
 
 # Ambiguous pairs: genuinely judgment calls, mostly cross-type (a social

@@ -23,6 +23,7 @@ def _build_corpus() -> EvalCorpus:
             queries=corpus.QUERIES,
             duplicate_groups=corpus.DUPLICATE_GROUPS,
             ambiguous_pairs=corpus.AMBIGUOUS_PAIRS,
+            revision=corpus.REVISION,
         )
     )
 
@@ -57,6 +58,7 @@ def _run_report() -> dict:
         "schema": "signalpulse-eval-report",
         "corpus": {
             "synthetic": True,
+            "revision": corpus_data.revision,
             "query_count": len(corpus_data.queries),
             "item_count": total_items,
             "duplicate_group_count": len(gold_groups),
@@ -91,7 +93,8 @@ def _human_summary(report: dict) -> str:
         f"  corpus: {report['corpus']['query_count']} queries, "
         f"{report['corpus']['item_count']} items, "
         f"{report['corpus']['duplicate_group_count']} duplicate groups, "
-        f"{report['corpus']['ambiguous_pair_count']} ambiguous pairs",
+        f"{report['corpus']['ambiguous_pair_count']} ambiguous pairs "
+        f"(revision {report['corpus']['revision']})",
         "",
         "  baseline ranking (naive lexical term-count, NOT production):",
     ]

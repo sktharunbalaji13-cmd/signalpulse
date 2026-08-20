@@ -31,12 +31,13 @@ def _group(gid: str, members: list[str], label: str = "story") -> dict:
 
 def test_corpus_loads_and_validates():
     data = _build_corpus()
-    assert len(data.queries) == 15
+    assert len(data.queries) == 16
     assert all(len(q.items) >= 20 for q in data.queries)
     total = sum(len(q.items) for q in data.queries)
-    assert total >= 300
-    assert len(data.duplicate_groups) >= 15
+    assert total >= 360
+    assert len(data.duplicate_groups) >= 16
     assert len(data.ambiguous_pairs) >= 1
+    assert data.revision == 2
 
 
 def test_relevance_labels_are_valid_in_corpus():

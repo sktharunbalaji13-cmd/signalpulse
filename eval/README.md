@@ -27,8 +27,8 @@ The harness is deterministic: repeated runs produce byte-identical output
 
 ## Corpus
 
-`eval/corpus.py` defines 15 queries with ~20 fixed synthetic items each
-(~300 items total). Every item is fictional and uses `.example` domains; no
+`eval/corpus.py` defines 16 queries with ~20+ fixed synthetic items each
+(~365 items total). Every item is fictional and uses `.example` domains; no
 real-world events, outlets, or people are being claimed. Items are authored as
 Python data structures (not JSON) for maintainability, then validated against
 the Pydantic schema in `eval/schema.py`.
@@ -39,8 +39,25 @@ stories, mobile/AMP variants, exact-title duplicates, paraphrased titles,
 publisher boilerplate suffixes, generic-title decoys ("Update"), unrelated
 articles with similar wording, Reddit discussion posts, social posts linking to
 news articles, Wikipedia reference results, items missing `published_at`, items
-with trustworthy timestamps, old-but-relevant reference material, and
-recent-but-weakly-relevant results.
+with trustworthy timestamps, old-but-relevant reference material,
+recent-but-weakly-relevant results, and (revision 2) **near-miss distractors**
+and an **ambiguous-entity** query.
+
+### Revision history
+
+| Revision | Change | Baseline (naive lexical) |
+|---|---|---|
+| 1 | Original M3-A0 corpus: 15 queries, 300 items | P@5 0.9467, P@10 0.9200, MRR 0.9556, nDCG@10 0.8333 |
+| 2 | Added near-miss + ambiguous-entity distractors (16 queries, ~365 items) | P@5 0.7875, P@10 0.8250, MRR 0.8958, nDCG@10 0.6909 |
+
+Revision 2 was motivated by the observation that the v1 baseline nDCG@10 of
+0.8333 already cleared the 0.75 target: relevance was too strongly correlated
+with query terms appearing in titles, so a naive lexical ranker scored
+unreasonably well. Near-miss distractors (topically related but not answering
+the query) and an ambiguous-entity query ("juniper AI": company vs plant) were
+added to represent realistic search ambiguity. This is a **documented corpus
+change**, not an attempt to manufacture a lower score — the goal is a corpus
+that measures real retrieval difficulty, whatever the resulting metric.
 
 ## Labeling rules
 

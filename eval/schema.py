@@ -100,6 +100,7 @@ class EvalCorpus(BaseModel):
     """
 
     synthetic: bool = True
+    revision: int = 1
     queries: list[EvalQuery]
     duplicate_groups: list[DuplicateGroup]
     ambiguous_pairs: list[list[str]] = []
