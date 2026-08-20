@@ -188,13 +188,117 @@ placeholder pending a real second news source; unknown sources default to
 (`eval/reports/ranking_eval.md`) decides whether a candidate is good enough
 to implement.
 
-## 6. M3-E — Filters (API only, no UI yet)
+## 6. M3-E — Filters & result controls (query-time views, no pipeline change)
 
-On `GET /api/v1/searches/{id}/results` (query params, repo layer, zero schema change):
-- `source_type=news|social|reference` (repeatable)
-- `source=guardian|reddit|wikipedia`
-- `time=24h|7d|30d|all` — hard filter on `published_at`, applied to **news/social only**; reference always included (timeless context). Items lacking `published_at` are excluded from `time` filters except `all`.
-- Defaults: all types, all sources, all time.
+### 6.0 Core principle: filters are a VIEW over the frozen ranked set
+
+The M3-D C4 total order (persisted `rank_position` at search completion) is the
+single source of truth. Every M3-E filter is a **query-time predicate over
+stored rows** — it selects a subset of that total order and serves it with the
+same ordering keys. Nothing is re-ranked, re-normalised, or re-diversified at
+request time; no row is written. This guarantees by construction:
+
+- filtered results remain correctly ranked (a subset of a total order is a
+  total order; scores and `rank_components` are bit-identical to the frozen
+  model);
+- ranking semantics never change silently (no per-filter re-normalisation of
+  relevance, no re-run of the diversity pass);
+- provenance is never mutated (filters are read-only SELECTs);
+- determinism (same search + same params → same rows, same order, forever);
+- no filter can cause an indefinite search (no retrieval is ever triggered);
+- partial/failed searches degrade identically (the view reads whatever rows
+  exist; `search.status` is untouched);
+- one indexed query, cheap enough for a public browser client.
+
+### 6.1 API surface (zero schema change)
+
+On `GET /api/v1/searches/{id}/results` (query params only):
+
+| Param | Values | Semantics |
+|---|---|---|
+| `page` | int ≥ 1 (default 1) | 1-indexed page over the **filtered** view |
+| `per_page` | int 1..100 (default 20) | page size; capped, never unbounded |
+| `source_type` | `news` / `social` / `reference`, repeatable (OR) | vertical filter; default all |
+| `time` | `24h` / `7d` / `30d` / `all` (default `all`) | hard age window on `published_at` |
+| `duplicates` | `all` / `canonical` (default `all`) | `canonical` hides `is_duplicate` members |
+| `language` | `[a-z]{2,3}` code (default none) | exact match on the stored `language` column |
+
+Ordering is unchanged (M3-D): `rank_position` asc NULLS LAST, then the
+fallback tie-break (type priority → `published_at` desc NULLS LAST → URL).
+`total` = filtered row count; a page beyond the range returns an empty
+`items` list with HTTP 200 (not an error).
+
+Semantic rules:
+
+- **`source_type`** — simple membership predicate. Filters that remove every
+  canonical member of a group do not cascade: remaining members are still
+  valid rows (they carry the group's inherited score) and keep their
+  `duplicate_group_id`.
+- **`time`** — hard cut on `published_at` age measured from the **search
+  completion instant** (`search.completed_at`; falls back to `created_at`
+  while running), so a given search + params is deterministic forever
+  (shareable URLs, stable pagination). Applied to **news/social only**;
+  reference rows are always included (timeless context, M3-C design). Rows
+  with NULL `published_at` are excluded by any `time` filter except `all`.
+  There is deliberately **no hard freshness-score filter**: freshness is a
+  soft weighted ranking signal (M3-C); a hard score filter would fight the
+  frozen weights. The time window is the user's control.
+- **`duplicates=canonical`** — the view skips `is_duplicate` members.
+  `duplicate_group_id` stays exposed; group metadata (`member_count`,
+  `duplicate_evidence`) describes the full group and is **not** reduced by
+  the view.
+- **`language`** — exact match on the stored `language` column. Rows with
+  NULL `language` are excluded while a language filter is active (a hard
+  filter is honest: we cannot prove they match). Coverage is measured
+  (§6.3) because current source metadata only carries language for
+  Guardian/Wikipedia/GDELT — a `language=en` filter excludes the social
+  vertical entirely today.
+- **Invalid values are rejected with HTTP 422** (enum/pattern validation) —
+  never silently ignored, never partially applied. `page=0`, `per_page>100`,
+  unknown `source_type`, unknown `time`, unknown `duplicates`, malformed
+  `language` all fail explicitly.
+- **Interaction with ranking**: filters never recompute scores. The earlier
+  §6 sketch's `source=` (per-outlet) param is dropped from scope: verticals
+  are the user-facing controls, and a per-outlet filter is a trivial
+  extension of the same predicate family (deferred).
+
+### 6.2 M3-E experiment — filter semantics, behavioural acceptance tests first
+
+The filter layer is **not implemented yet**. `eval/filter_eval.py` defines
+behavioural acceptance probes BEFORE any corpus measurement (same discipline
+as §5.1), runs them against the designed view semantics, then measures the
+filter configs on the frozen corpus ranked by the accepted C4 model. The
+probes encode "what correct filtering means":
+
+| # | Behaviour | Controlled probe |
+|---|---|---|
+| P1 | Filtered subset stays correctly ranked: order == projection of the full C4 order, scores unchanged | filter over C4-ranked synthetic items → same relative order + identical scores |
+| P2 | `source_type` restricts to the requested verticals (OR for repeats); empty result → empty list, not error | news-only view excludes social/reference; news+social OR |
+| P3 | `time` window: news/social only, reference always included, NULL `published_at` excluded except `all` | 24h view: news at 4h in, news at 7d out, reference without ts in, news without ts out |
+| P4 | `time` never reorders within the kept set | kept ids identical before/after window filter |
+| P5 | `duplicates=canonical` hides members, keeps canonicals, total order intact, group ids intact | pair + lone item → view shows canonical + lone, member hidden |
+| P6 | Type filter removing a canonical keeps remaining members (no dangling rows); group info preserved | canonical=news filtered out by social-only → social member still present with group id |
+| P7 | Invalid filters fail explicitly (422-class): every invalid value rejected, nothing silently ignored | each invalid param value → rejection |
+| P8 | Deterministic + deterministic pagination: repeated calls identical; total = filtered count; pages non-overlapping; beyond-range page → empty | two applications equal; page math over a filtered view |
+| P9 | Partial/failed sources degrade gracefully: filters work identically over partial results; no retrieval is ever triggered | view over a subset of rows behaves identically; filter function performs no I/O |
+| P10 | Provenance invariant: any filter leaves stored rows bit-identical (rank/dedup/raw columns untouched) | input rows deep-compared before/after every filter application |
+| P11 | `language` matches exactly; NULL-language rows excluded when active; invalid code rejected | en filter keeps only `language == "en"` rows; NULL excluded |
+
+Candidates measured (configs of the designed view, not fitted): **F0**
+default (no filters, control = C4 order); **F1** news-only; **F2**
+social-only; **F3** reference-only; **F4** `time=24h`; **F5** `time=7d`;
+**F6** `time=30d`; **F7** `duplicates=canonical`; **F8** news + `time=7d`;
+**F9** news+social + `time=24h` (the "today" view); **F10** `language=en`
+(coverage-only: the corpus has no language field, so coverage is mapped from
+real source metadata — Guardian/Wikipedia `en`, Reddit NULL — and reported
+honestly as metadata coverage, not relevance quality).
+
+Report (`eval/reports/filter_eval.md`) decides which filter set is
+admissible for implementation. Decision gate: all 11 probes must pass, the
+report must be byte-deterministic, and corpus measurement must be read with
+the coverage numbers (nDCG@10 on a filtered view is computed against the
+full-query ideal, so narrow filters score low even when every kept item is
+relevant — coverage explains the gap).
 
 ## 7. Provenance rules
 
@@ -241,7 +345,7 @@ On `GET /api/v1/searches/{id}/results` (query params, repo layer, zero schema ch
 - **M3-B**: nDCG@10 ≥ 0.75 (target) on offline eval; `rank_components` populated and interpretable.
 - **M3-C**: per-type curves unit-tested; no fabricated timestamps (property test); GDELT `seendate` remains untrusted.
 - **M3-D** (CLOSED): C4 accepted as the production model; `app/services/ranking.py` implements it unchanged (validated weights, diversity pass, deterministic total order, duplicate awareness); pipeline persists `rank_score`/`rank_components`/`rank_position` at completion; results endpoint serves rank order; all 9 behavioural probes pass through the production ranker and the production ranker reproduces C4's corpus behaviour bit-for-bit. BM25 is NOT used (ADR 0007).
-- **M3-E**: filter semantics per design on mocked data.
+- **M3-E**: filter semantics per design on mocked data — query-time views only (no pipeline/schema change); all 11 behavioural probes pass; invalid filters → explicit 422; deterministic pagination over the filtered view; provenance untouched.
 - **Global**: no new network calls, no LLM/RAG/agents/caching/Redis/Celery; ruff clean; CI green.
 
 ## 13. Dependency
