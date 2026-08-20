@@ -152,6 +152,42 @@ final = w_rel·relevance + w_fresh·freshness + w_qual·source_quality   [+ dive
 - Total tie-break (arrival-order-proof): score desc → source-type priority → `published_at` desc (else `retrieved_at` desc) → URL lexicographic.
 - All weights in config; every component stored in `rank_components`.
 
+### 5.1 M3-D experiment — combination formula, behavioural acceptance tests first
+
+The combined ranker is **not implemented yet**. Components are fixed and
+validated: lexical relevance (the production core after ADR 0007, min-max
+normalised per search to [0, 1]), the M3-C freshness scorer (bit-identical to
+the accepted model), fixed source-quality constants, and the diversity pass.
+**No BM25, no tuning against the corpus until the acceptance tests are
+defined and met** — `eval/ranking_eval.py` measures candidates on controlled
+probes first, then reports corpus metrics as secondary evidence.
+
+Behavioural acceptance tests (defined BEFORE any corpus measurement):
+
+| # | Behaviour | Controlled probe |
+|---|---|---|
+| P1 | Fresh irrelevant must not outrank older relevant (the "Update 4 h ago vs highly relevant yesterday" case) | A: relevant, 24 h old · B: "Update", 4 h old → A first |
+| P2 | Relevance dominates even at the freshness floor | A: relevant, 30 d old · B: "Update", 4 h old → A first |
+| P3 | Higher source quality wins at equal relevance + freshness | Guardian vs Reddit, same age/score → Guardian first |
+| P4 | Reference timelessness: authoritative reference beats fresh partial news; reference never dominates on weight alone | A: reference, rel-1.0, no ts · B: news rel-0.5, 4 h → A first; weak reference < relevant news |
+| P5 | Missing timestamp is neutral, not lethal | A: relevant, no ts · B: "Update", 4 h → A first |
+| P6 | Deterministic total order: identical scores → type priority → `published_at` desc (None last) → URL | exact tie cases; order identical across runs |
+| P7 | Duplicates: members inherit the canonical score; no double-counting | identical pair: equal scores, unchanged neighbours |
+| P8 | Diversity: within ±0.05 band source types alternate; toggleable | same-band news+social: alternation differs from plain order |
+| P9 | Freshness advantage: fresher relevant beats older relevant at equal relevance/quality | A: relevant 4 h · B: relevant 30 d → A first |
+
+Candidates (principled, documented — not fitted to the corpus): **C0**
+relevance only (control); **C1** the §5 weights (news/social 0.55/0.30/0.15,
+reference 0.65/0.10/0.25); **C2** balanced (0.50/0.30/0.20); **C3**
+relevance-heavy (0.70/0.20/0.10); **C4** = C1 + diversity pass.
+
+Source quality for the eval corpus: Guardian 0.90, Wikipedia 0.80, Reddit
+0.50 (design §5); the fictional "Global Wire" outlet gets a documented 0.85
+placeholder pending a real second news source; unknown sources default to
+0.50. Weights are not changed during the experiment; the report
+(`eval/reports/ranking_eval.md`) decides whether a candidate is good enough
+to implement.
+
 ## 6. M3-E — Filters (API only, no UI yet)
 
 On `GET /api/v1/searches/{id}/results` (query params, repo layer, zero schema change):
