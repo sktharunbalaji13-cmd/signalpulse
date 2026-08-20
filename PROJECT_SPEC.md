@@ -1,12 +1,12 @@
-# SignalPulse — Project Specification v0.2
+# SignalPulse — Project Specification v0.3
 
 **Working title:** SignalPulse
-**Status:** Source/platform validation complete (2026-08-19) — ready for M0
+**Status:** M1–M2 complete (Wikipedia + Guardian + Reddit live; GDELT gate = NO-GO). Public reliability & performance are locked product requirements. Ready for M3.
 **Author:** B.Tech AI & DS student (portfolio project), developed with AI-assisted tooling
 
 > This document is the architectural contract for the project. It separates the **MVP** (what we build first) from **future versions** (V1–V5). Nothing here is code — it is the design we lock in before writing implementation.
 >
-> **Revision history:** v0.1 → v0.2 — MVP source set re-validated against live 2026 API availability/cost (Appendix A). NewsAPI.org dropped (free tier delays articles ~24 h), Brave/Bing confirmed dead, hosting locked to Render + Neon, LLM path updated to Gemini free tier.
+> **Revision history:** v0.1 → v0.2 — MVP source set re-validated against live 2026 API availability/cost (Appendix A). NewsAPI.org dropped (free tier delays articles ~24 h), Brave/Bing confirmed dead, hosting locked to Render + Neon, LLM path updated to Gemini free tier. v0.2 → v0.3 — "public, reliable, fast browser experience" elevated to first-class product requirements (§6A); GDELT gate concluded **NO-GO** (M2-C, ADR 0005) and removed from the active source set; roadmap revised with a dedicated M3.5 (public reliability & performance) milestone; source timeout target tightened to ~5 s.
 
 ---
 
@@ -64,7 +64,7 @@ Positioning: a **personal intelligence desk**, not a Google clone and not a chat
 ## 6. MVP scope (exactly this, nothing more)
 
 1. User enters a query (with optional time window).
-2. Backend fans out to **4 sources concurrently**: The Guardian API (news), GDELT 2.0 DOC API (global news breadth), Reddit API (social), Wikipedia REST API (reference).
+2. Backend fans out to **3 sources concurrently**: The Guardian API (news), Reddit API (social), Wikipedia REST API (reference). (GDELT was evaluated as a 4th source in M2-C and rejected — ADR 0005; its adapter remains in the repo, unregistered, re-enableable in one line.)
 3. Each adapter returns results mapped to one **canonical result model**.
 4. Results are **deduplicated** (exact + near-duplicate titles/URLs across sources).
 5. Results are **ranked** by an interpretable score (relevance + freshness + source quality).
@@ -73,6 +73,43 @@ Positioning: a **personal intelligence desk**, not a Google clone and not a chat
 8. Simple **search history** page (last N queries, reusable).
 
 A working vertical slice — query → results on screen — must exist by the **end of milestone M1**.
+
+## 6A. Product requirements — public, reliable, fast (locked 2026-08-19)
+
+The product is a **public browser experience for normal people**, not an internal tool. Reliability and speed are therefore first-class product requirements, not engineering nice-to-haves. Anything below that can be met without exotic infrastructure is deliberately out of scope until M3.5/M4.
+
+### 6A.1 Performance targets (UX contract)
+
+| Phase | Target | Rule |
+|---|---|---|
+| Submission | < 500 ms | `POST /searches` must feel instant; the search runs in the background by design |
+| First results | ≤ 3 s | Frontend polls; as soon as **any** source returns, results render progressively |
+| Completed | ≤ 5 s | Whole search typically completes within 5 s |
+| Slow source | never blocks | Per-source timeout ~5 s; a stalled source must not delay or fail the search |
+| Loading | never indefinite | Every loading state has a hard cap; a state that cannot complete is replaced by an error + retry |
+
+Fast sources render first; slow ones arrive later. No spinner may spin forever, and no page may be "loading" past the cap.
+
+### 6A.2 Reliability requirements
+
+1. **Source isolation** — one source failing, timing out, or rate-limiting must never fail the search; results from the remaining sources still complete.
+2. **Timeouts** — every external call has a hard per-source timeout (~5 s). The pipeline has an overall deadline so a hung source cannot hang the whole search.
+3. **Partial results are the product** — the UI shows what completed, flags what didn't (`status = partial`, per-source banner: *"News source unavailable — showing results from 2 of 3 sources"*), and never pretends missing sources are fine.
+4. **Rate limits** — each source handles its own limits (429/403/quota) and surfaces them as `rate_limited` source events, never as raw errors.
+5. **Graceful degradation** — no source, no unhandled exception, and no upstream outage may produce a white page, a stack trace, or a hang. Worst case is a clean, honest error state with a retry.
+6. **Observability** — per-search source events, statuses, and timings are logged (§29) so every degraded experience is explainable.
+
+### 6A.3 Security architecture (locked)
+
+- **Credentials live only in the backend** (env vars on the server). API keys are never served to, or derivable by, the browser. The frontend is a public static client with zero secrets.
+- No user accounts, no personal data, no auth surfaces in the MVP (see §7) — nothing to leak.
+- Standard hardening: validated inputs, capped query length, no secrets in logs or responses, dependency scanning in CI.
+
+### 6A.4 Cost & caching — deferred to M3.5 (explicitly NOT in M3)
+
+- **No caching in M3.** M3 adds retrieval intelligence (dedup/ranking/freshness/filtering) and must first *measure* real query latency per source (we have live data already: Guardian ~1.2 s, Reddit & Wikipedia sub-second; GDELT's 11–28 s failures are the reason it was rejected).
+- Caching, timeouts tuning, progressive-results UI, and load/failure/recovery testing are **M3.5** work, done from measured numbers, not guesses.
+- Priority order (locked): **Reliability → Speed → Source quality → Provenance → Intelligence → AI**.
 
 ## 7. Features explicitly NOT in the MVP
 
@@ -102,8 +139,8 @@ A working vertical slice — query → results on screen — must exist by the *
                             │        │  Source registry +       │            │
                             │        │  adapters (adapter       │            │
                             │        │  pattern)                │            │
-                            │        │  guardian | gdelt |     │            │
-                            │        │  reddit | wikipedia      │            │
+                            │        │  guardian | reddit |     │            │
+                            │        │  wikipedia                │            │
                             │        └───────────┬─────────────┘            │
                             │                    ▼                          │
                             │        normalize → dedupe → rank → persist    │
@@ -116,7 +153,7 @@ A working vertical slice — query → results on screen — must exist by the *
 
 Key decisions:
 - **Async fan-out.** Queries to external APIs are I/O-bound; `httpx` async + `asyncio.gather` fetches all sources in parallel. This is the single biggest performance win and the reason FastAPI (not Flask/Django) is chosen.
-- **Job pattern, not blocking request.** Source fetches take 2–10 s. `POST /searches` returns a `search_id` immediately; a FastAPI `BackgroundTask` executes the pipeline; the frontend polls status. No Celery needed at this scale.
+- **Job pattern, not blocking request.** Source fetches target < 5 s total (see §6A). `POST /searches` returns a `search_id` immediately; a FastAPI `BackgroundTask` executes the pipeline; the frontend polls status. No Celery needed at this scale.
 - **Layered backend** (routes → services → adapters → DB) so each layer is testable in isolation.
 - **Adapter pattern for sources** — the single most important extensibility decision (see §10).
 - No microservices, no Redis, no message broker. One process is correct for MVP.
@@ -143,9 +180,9 @@ SourceResult (canonical model)
         │ maps into
 BaseSourceAdapter (abstract interface)
   ├── GuardianAdapter    (official API, key, ~500 calls/day free)
-  ├── GDELTAdapter       (public DOC API, no key)
   ├── RedditAdapter      (official OAuth API, script app, approval required)
   ├── WikipediaAdapter   (official REST API, no key)
+  └── (M2-C) GDELTAdapter — fully built & tested, **NOT registered** (gate = NO-GO, ADR 0005; one-line re-enable)
   └── (V1+) HackerNewsAdapter, YouTubeAdapter, TavilyAdapter, RSSAdapter, MastodonAdapter ...
 ```
 
@@ -158,10 +195,11 @@ BaseSourceAdapter (abstract interface)
 
 | Source | API | Access | Limits (verified Aug 2026) | Why |
 |---|---|---|---|---|
-| The Guardian | Open Platform API | Free developer key, instant signup | ~500 calls/day, 1 call/sec (official access page); full article text incl.; non-commercial | Real-time quality news with precise timestamps + bylines. Single publisher (UK-leaning) — breadth comes from GDELT. |
-| GDELT 2.0 | DOC API | Free, no key | ~3-month rolling window; 250 records/request; pace 1 req/5 s/IP; responses often 2–20 s; `seendate` ≈ first-seen time, not true publish time | The only truly free global multi-outlet news index (tens of thousands of outlets) — gives the "same story from 5 outlets" dedup demo. Accept: label its date as "first seen by GDELT". |
+| The Guardian | Open Platform API | Free developer key, instant signup | ~500 calls/day, 1 call/sec (official access page); full article text incl.; non-commercial | Real-time quality news with precise timestamps + bylines. Single publisher (UK-leaning); breadth of outlets comes from V1 sources (HN, RSS, Tavily). |
 | Reddit | Official OAuth (script app) | Free registration + **explicit approval** (Responsible Builder Policy, June 2026; reported 2–4 week queue) | 100 QPM per client (OAuth), non-commercial only; search = posts (no comment search) | Real community reaction/social signal. Apply for approval on day one; build the adapter with recorded fixtures meanwhile. |
 | Wikipedia | Official REST/action API | Free, no key | Anonymous ~500 req/hr per IP (2026 limits; 429 + Retry-After); use UA + maxlag | Reliable reference/context ("what is X"), zero cost, always available. Not a real-time source — it is the reference layer. |
+
+> **GDELT 2.0 — evaluated in M2-C, decision NO-GO (ADR 0005).** Live probe: 1/5 requests succeeded (4× HTTP 429), failures took 11–28 s, the one success took 27.7 s and returned 10/10 non-English results; `seendate` is not a publish timestamp. It was a candidate 4th source for "global news breadth" and failed every gate criterion. Its complete, tested adapter stays in the repo, unregistered, for a future re-evaluation (one-line re-enable).
 
 **Deliberately excluded for MVP (verified Aug 2026):**
 - **NewsAPI.org** — free tier is dev-only AND articles are delayed ~24 h → fails our "what is happening now" goal. Business tier $449/mo.
@@ -220,7 +258,7 @@ results
   id            uuid  PK
   search_id     uuid  FK → searches
   source_type   text       -- news | reference | social
-  source_name   text       -- "The Guardian", "GDELT", "Reddit", "Wikipedia"
+  source_name   text       -- "The Guardian", "Reddit", "Wikipedia"
   title         text
   description   text
   url           text
@@ -263,7 +301,7 @@ All JSON, versioned under `/api/v1`.
 
 ```
 POST /api/v1/searches
-  body:    { "query": "...", "window_hours": 24, "sources": ["guardian","gdelt","reddit","wikipedia"] }
+  body:    { "query": "...", "window_hours": 24, "sources": ["guardian","reddit","wikipedia"] }
   → 202:   { "search_id": "..." }
   # background pipeline starts; UI polls
 
@@ -333,7 +371,7 @@ backend/
     sources/
       base.py                  -- BaseSourceAdapter + SourceResult (the contract)
       registry.py              -- SOURCE_REGISTRY, enable/disable
-      guardian.py, gdelt.py, reddit.py, wikipedia.py
+      guardian.py, reddit.py, wikipedia.py        # + gdelt.py (built, NOT registered — ADR 0005)
     services/
       search_pipeline.py       -- orchestrates: fan-out → collect → dedupe → rank → persist
       dedup.py                 -- exact + fuzzy deduplication
@@ -354,7 +392,7 @@ One canonical model — the contract every adapter must produce (Pydantic):
 ```python
 class SourceResult(BaseModel):
     source_type: str            # "news" | "reference" | "social" | "video"
-    source_name: str            # e.g. "The Guardian", "GDELT (multi-outlet)", "r/technology (Reddit)", "Wikipedia"
+    source_name: str            # e.g. "The Guardian", "r/technology (Reddit)", "Wikipedia"
     title: str
     description: str | None
     url: str
@@ -415,7 +453,7 @@ source_quality   = static prior: news 1.0, reference 0.9, social 0.7
 
 Every result card must show, always:
 1. **Source type chip** — NEWS / SOCIAL / REFERENCE / VIDEO
-2. **Source name** — e.g., "The Guardian", "GDELT (first seen)", "r/technology (Reddit)", "Wikipedia"
+2. **Source name** — e.g., "The Guardian", "r/technology (Reddit)", "Wikipedia"
 3. **Title** — linking out to the original URL
 4. **Description/snippet** — clearly presented as the source's text
 5. **Author** — if the API provides one
@@ -470,13 +508,13 @@ Implementation recommendation: **plain Python orchestrator** (a state machine wi
 Per source, inside the adapter:
 - **Token-bucket limiter** per adapter (in-process; a dict per source is enough at MVP scale).
 - **Retry policy:** on 429/5xx/network error → up to 2 retries with exponential backoff + jitter (1 s, 2 s). On 401/403 → no retry; log auth failure.
-- **Timeouts:** hard per-request timeout (10 s; Wikipedia 5 s) — a slow source must not stall the whole search.
+- **Timeouts:** hard per-source timeout ~5 s (locked target, §6A; Wikipedia keeps its shorter 5 s, Guardian/Reddit tuned from measured latency) — a slow source must never stall the whole search.
 - **Quota awareness:** Guardian ~500 calls/day, Reddit 100 QPM, Wikipedia ~500 req/hr per IP → the **DB query cache** (identical normalized query within 15 min TTL) is the main defense, plus a per-source daily budget counter that disables the adapter with a friendly error once exhausted.
 - **Transparency:** `GET /api/v1/sources` reports per-source health, last error, and quota usage when the API exposes it.
 
 ## 26. Failure / fallback strategy
 
-- **Per-source isolation:** if one source fails/times out/rate-limits, the search **still completes** with the others; status = `partial`; UI shows a banner: *"News source unavailable — showing results from 2 of 3 sources."* Per-source error is recorded in `source_events`.
+- **Per-source isolation:** if one source fails/times out/rate-limits, the search **still completes** with the others; status = `partial`; UI shows a banner: *"News source unavailable — showing results from 2 of 3 sources."* Per-source error is recorded in `source_events`. No loading state may be indefinite (hard cap, §6A).
 - **All fail:** status = `failed` with a clear message; UI offers retry.
 - **Retry once** for transient errors (covered in §25).
 - **Cache as fallback (V2):** if a source is down, serve its last successful cached results, clearly labeled "cached results from {time}".
@@ -548,10 +586,11 @@ Time estimates assume ~10–15 hrs/week.
 |---|---|---|
 | **M0** (wk 1) | Repo setup (move to `C:\dev\signalpulse`), FastAPI hello-world + `/health`, React scaffold, CI green, `.env.example`; **apply for Reddit API access + register Guardian key on day one** (Reddit approval can take 2–4 weeks — start the clock now) | CI passes on push |
 | **M1** (wk 2) | **Vertical slice:** Wikipedia adapter only → background job → polling → results on screen (ugly is fine) | You search a topic and see cards |
-| **M2** (wk 3) | Guardian + Reddit + GDELT adapters, canonical model finished, per-source status chips, partial-failure banner. **Decision gate:** if GDELT p95 latency > ~12 s or its fields prove unusable in dev, swap it for Hacker News (tech) or Tavily (general web) — one adapter swap, architecture unchanged | All 4 sources live |
-| **M3** (wk 4–5) | Dedup groups, ranker + explainable scores, time-window filter, source filter, history page | Filters and "also reported by N" work |
-| **M4** (wk 6) | Test suite + CI, error/rate-limit hardening, structured logs, Docker Compose, deploy live (Render web + Neon Postgres), README + demo video + eval set v1 | Live URL works end-to-end |
-| **V1** (wk 7–9) | Hacker News + YouTube + RSS + Tavily adapters, query cache, Tailwind polish, stats page, eval metrics in README | 6+ sources |
+| **M2** (wk 3) | Guardian + Reddit adapters (GDELT adapter built + gated — **gate = NO-GO**, ADR 0005, kept unregistered), canonical model finished, per-source status chips, partial-failure banner | 3 sources live, gate decision recorded |
+| **M3** (wk 4–5) | **Retrieval intelligence:** dedup groups + "also reported by N", ranker with explainable scores, freshness handling (time-window filter, NEW badge, honest "no timestamp"), source filter, history page. **No caching in M3** — measure per-source latency first (§6A.4) | Filters and "also reported by N" work |
+| **M3.5** (wk 5–6) | **Public reliability & performance** (§6A, locked): query cache, ~5 s per-source timeout strategy, progressive first-results rendering (first results ≤ 3 s, completed ≤ 5 s), load testing + failure/recovery testing, worst-case error UX with retry | Meets the §6A UX contract under load and with injected failures |
+| **M4** (wk 6–7) | Test suite + CI hardening, error/rate-limit hardening, structured logs, Docker Compose, deploy live (Render web + Neon Postgres, HTTPS, domain, uptime/basic monitoring), README + demo video + eval set v1 | Live URL works end-to-end for the public |
+| **V1** (wk 8–10) | Hacker News + YouTube + RSS + Tavily adapters, Tailwind polish, stats page, eval metrics in README | 6+ sources |
 | **V2** (wk 10–13) | spaCy entity extraction, TF-IDF topic clustering, VADER sentiment per source type, timeline view | Clusters + entities visible |
 | **V3** (wk 14–17) | Gemini free-tier briefings → paid API model, claim extraction, citation linking + grounding checks, conflict comparison | Cited briefings on every search |
 | **V4** (wk 18–20) | Agent orchestration (search/research/verify/summarize), monitoring agent, saved queries + re-runs | Agents + monitoring |
@@ -563,7 +602,7 @@ Time estimates assume ~10–15 hrs/week.
 
 Learn each topic *at the moment the milestone needs it* (just-in-time, not theory-first):
 
-1. **Reading an API's docs** (Guardian, GDELT, Reddit, Wikipedia) — endpoints, params, auth, quotas, ToS. This skill transfers everywhere.
+1. **Reading an API's docs** (Guardian, Reddit, Wikipedia — and GDELT, evaluated and rejected in M2-C) — endpoints, params, auth, quotas, ToS. This skill transfers everywhere.
 2. **Async programming basics** — what `async/await` actually does, why I/O-bound fan-out benefits.
 3. **FastAPI fundamentals** — routes, Pydantic validation, BackgroundTasks, dependency injection.
 4. **The adapter pattern** — why interfaces + registry make a system extensible.
@@ -609,13 +648,13 @@ Non-negotiables — if you can't explain these in an interview, the project look
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| GDELT latency/field quality (2–20 s responses; `seendate` ≈ first-seen, not publish time) | Slow or messy news results | Longer timeout (25 s) for GDELT only, parallel fan-out, label dates honestly ("first seen by GDELT"); M2 decision gate to swap in Hacker News/Tavily |
+| GDELT DOC API — **gate concluded 2026-08-19: NO-GO** (1/5 live success, 4× HTTP 429, 11–28 s failures, one success 27.7 s with 10/10 non-English results; `seendate` ≠ publish time) | Unusable as a public-product news source | **ADR 0005.** Adapter kept tested & unregistered (one-line re-enable if conditions change); Guardian remains the news source, HN/RSS/Tavily add breadth in V1 |
 | Reddit approval queue (2–4 weeks under 2026 Responsible Builder Policy) | Social source missing at demo time | Apply on day one; build adapter with recorded fixtures; Mastodon as backup social source |
 | API quotas (Guardian ~500/day, Reddit 100 QPM, Wikipedia ~500/hr per IP) | Demo breaks mid-week | Aggressive query cache, per-source daily budget counter, recorded demo seed |
 | APIs change or shut down | Source breaks | Adapter isolation: one module to fix; registry keeps the rest alive; validation appendix with dates (§Appendix A) |
 | X/Twitter unavailable | No mainstream social | Skip; use Reddit now, Mastodon/Bluesky (free official APIs) later |
 | Messy data (missing timestamps, dupes, bad snippets) | Ugly results | Canonical model with explicit "unknown time" flags; dedup + ranking absorb it |
-| Fan-out latency (slowest source) | Slow searches | Hard timeouts (10 s default, 25 s GDELT), parallel gather, per-source isolation |
+| Fan-out latency (slowest source) | Searches miss the §6A UX contract | Hard per-source timeout ~5 s, parallel gather, per-source isolation, progressive rendering (M3.5) |
 | OneDrive folder + path with spaces | Git/node_modules/Docker breakage | Move repo to `C:\dev\signalpulse` on day zero |
 | LLM cost & hallucination (V3) | Bad briefings, unexpected bills | Gemini free tier for dev, paid API for demo only; grounding checks; budget caps |
 | Ranking feels subjective | "Why is this #1?" complaints | Stored rank components, eval set to tune weights |
@@ -628,7 +667,7 @@ Non-negotiables — if you can't explain these in an interview, the project look
 2. **A real extensibility architecture** — adapter pattern + registry, documented contracts, ADRs. You can point at "adding a source = one module" and demonstrate it live.
 3. **Engineering rigor rare among students** — tests with recorded fixtures, CI, structured logging, graceful degradation, rate-limit handling, eval set with actual numbers in the README.
 4. **Honesty discipline** — documented limitations, no "we search the entire internet" claims, social media flagged as unreliable. Maturity reads clearly.
-5. **A live product** — deployed URL, search history, demo video, a story you can tell: *"Type a topic → here's what happened in the last 24 hours across The Guardian, GDELT, Reddit, and Wikipedia, deduplicated, ranked, with every source cited."*
+5. **A live product** — deployed URL, search history, demo video, a story you can tell: *"Type a topic → here's what happened in the last 24 hours across The Guardian, Reddit, and Wikipedia — plus evidence of the gate test that rejected a 4th source rather than ship something unreliable — deduplicated, ranked, with every source cited."*
 6. **A real growth path shown** — the spec's V1–V5 roadmap proves you think in phases, not one-off hacks.
 7. **AI-assisted development done right** — you can articulate exactly which parts you designed vs. which agents implemented, and what you review before merging. That is the skill employers actually care about in 2026.
 
@@ -648,12 +687,12 @@ Method: live verification of official pricing/docs pages + independent 2026 trac
 | Bing Search API | **Retired Aug 11, 2025** (Microsoft moved to paid Azure AI grounding) | ❌ Dead |
 | X/Twitter API | No free read tier (paid ~$100+/mo) | ❌ |
 | **The Guardian** | Open Platform API: free key (instant), ~500 calls/day + 1 call/sec, full article text incl., non-commercial | ✅ MVP news source |
-| **GDELT 2.0** | DOC API: free, no key, ~3-month window, 250 records/request, pace 1 req/5 s, latency 2–20 s, `seendate` ≈ first-seen | ✅ MVP (with M2 gate + honest labeling) |
+| **GDELT 2.0** | DOC API: free, no key, ~3-month window, 250 records/request, pace 1 req/5 s, latency 2–20 s, `seendate` ≈ first-seen | ❌ **MVP — gate evaluated live 2026-08-19 = NO-GO** (ADR 0005; adapter kept tested, unregistered) |
 | **Reddit** | Free non-commercial: 100 QPM (OAuth); **pre-approval required since June 2026** (2–4 week queue reported); no comment search | ✅ MVP — apply day one |
 | **Wikipedia/Wikimedia** | Free, no key; 2026 rate limits (anon ~500 req/hr/IP reported), 429 + Retry-After; UA + maxlag etiquette | ✅ MVP reference layer |
 | Hacker News (Algolia) | Free, no key, real-time, ~10k req/hr/IP courtesy, ~1k results/query cap | ✅ V1 (easiest adapter — extensibility demo) |
 | YouTube Data API v3 | Free; since June 2026 `search.list` has its own **~100 calls/day** bucket | ✅ V1 |
-| Tavily | Free: 1,000 credits/mo, no card; basic search = 1 credit; student program exists | ✅ V1 / GDELT fallback + V3 grounding |
+| Tavily | Free: 1,000 credits/mo, no card; basic search = 1 credit; student program exists | ✅ V1 (also the future GDELT-style breadth play) + V3 grounding |
 | Mastodon | Free public endpoints (no key), 300 req/5 min per IP; search endpoint auth on many instances | ✅ V2+ social diversity |
 | Bluesky (AT Protocol) | Open/free API | ⏳ evaluate V3+ |
 
@@ -668,7 +707,7 @@ Method: live verification of official pricing/docs pages + independent 2026 trac
 | Gemini API free tier | ~1,500 req/day Flash, 1M TPM, no card (prompts may be used for training) | ✅ V3 dev model |
 
 ## Key caveats carried into the design
-1. GDELT's timestamp is `seendate` (when GDELT indexed the item), **not** the publish time — the UI must label it "first seen by GDELT", never "published".
+1. **GDELT (NOT enabled — ADR 0005):** its timestamp is `seendate` (when GDELT first indexed the item), **not** the publish time; if it is ever re-enabled, the UI must label it "first seen by GDELT", never "published". Gate evidence (2026-08-19): 1/5 live success, 4× HTTP 429, failures 11–28 s, one success 27.7 s returning 10/10 non-English results.
 2. Reddit approval may lag behind development — build the adapter + recorded fixtures first, enable it when approved.
 3. All "free tiers" are non-commercial by definition for this portfolio project; never attach a paid tier to a public API key.
 
@@ -678,7 +717,7 @@ Method: live verification of official pricing/docs pages + independent 2026 trac
 
 1. **Name:** SignalPulse. Locked.
 2. **Repo:** monorepo `backend/` (FastAPI) + `frontend/` (React+Vite+TS); move off OneDrive to `C:\dev\signalpulse`.
-3. **MVP sources (verified Aug 2026):** The Guardian API (free key, ~500 calls/day, real-time), GDELT 2.0 DOC API (free, no key, global breadth; M2 decision gate), Reddit OAuth script app (free, non-commercial; **apply for approval day one**, 2–4 week queue), Wikipedia REST API (reference layer). **NOT in MVP:** NewsAPI (24 h delay on free tier), GNews (12 h delay), Brave (free tier dead Feb 2026), Bing (retired 2025), X/Twitter (cost). Hacker News + YouTube + Tavily + RSS in V1.
+3. **MVP sources (verified Aug 2026; 3 live + 1 evaluated):** The Guardian API (free key, ~500 calls/day, real-time), Reddit OAuth script app (free, non-commercial; approved — live), Wikipedia REST API (reference layer). **GDELT evaluated in M2-C → NO-GO** (ADR 0005; adapter kept unregistered). **NOT in MVP:** NewsAPI (24 h delay on free tier), GNews (12 h delay), Brave (free tier dead Feb 2026), Bing (retired 2025), X/Twitter (cost). Hacker News + YouTube + Tavily + RSS in V1.
 4. **Source architecture:** canonical `SourceResult` model + `BaseSourceAdapter` interface + registry. New source = one module. Raw payloads preserved in DB.
 5. **Backend:** FastAPI + async httpx fan-out; `POST /searches` returns `search_id`; BackgroundTask pipeline; frontend polls.
 6. **Data:** SQLAlchemy ORM; SQLite in dev, PostgreSQL at deploy (config switch, not rewrite; **Neon** free tier — Render's free Postgres expires after 30 days). Tables: `searches`, `results`, `duplicate_groups`, `source_events`.
@@ -687,10 +726,10 @@ Method: live verification of official pricing/docs pages + independent 2026 trac
 9. **Freshness:** `published_at` (nullable, never guessed) + `retrieved_at` (always set); hard window filter before ranking.
 10. **Attribution contract:** every card shows source type, source name, URL, author, published + retrieved times, duplicate count. Non-negotiable.
 11. **No Redis, no Celery, no vector DB, no LLM, no auth, no scraping in MVP.** Cache = DB-backed 15-min TTL on identical queries.
-12. **Failure handling:** per-source isolation, timeout (10 s default; 25 s for GDELT), retry with backoff, partial results + banner; seeded demo data.
+12. **Failure handling:** per-source isolation, hard per-source timeout ~5 s (locked, §6A), retry with backoff, partial results + banner, no indefinite loading; seeded demo data.
 13. **Secrets:** pydantic-settings + `.env`; `.env.example` committed; server-side only; per-source keys.
 14. **Testing:** pytest + respx with recorded fixtures; TestClient for API flow; ruff + pytest + frontend build in GitHub Actions.
 15. **Eval:** ~30-query labeled eval set from M4; Precision@10, MRR, dedup F1, latency percentiles published in README.
-16. **Roadmap:** M0–M4 (MVP, ~6 weeks) → V1 (more sources + polish) → V2 (entities/clusters/sentiment) → V3 (grounded LLM briefings, Gemini→paid API) → V4 (plain-Python agents) → V5 (dashboard/monitoring). M0 includes the Reddit approval application; M2 has the GDELT decision gate. No milestone starts with broken tests; every milestone ends demoable.
+16. **Roadmap:** M0–M3.5 (MVP, ~6–7 weeks: M3 retrieval intelligence; **M3.5 public reliability & performance** — caching, ~5 s timeouts, progressive results, load/failure testing) → M4 public deployment (Render + Neon, HTTPS, domain, monitoring) → V1 (more sources + polish) → V2 (entities/clusters/sentiment) → V3 (grounded LLM briefings, Gemini→paid API) → V4 (plain-Python agents) → V5 (dashboard/monitoring). M0 included the Reddit approval application; M2 held the GDELT gate (**concluded NO-GO**). Priority: Reliability → Speed → Source quality → Provenance → Intelligence → AI. No milestone starts with broken tests; every milestone ends demoable.
 17. **You own:** architecture, contracts, dedup/rank logic, attribution design, eval, security. Agents own: boilerplate, adapter replication, fixtures, debugging, CSS, prompt drafts — all reviewed by you.
 18. **Source validation:** every source/platform decision carries a recorded verification date (see Appendix A); re-verify each before the milestone that first touches it. API tiers change — treat "verified" as time-stamped, not permanent.
