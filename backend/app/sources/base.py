@@ -28,6 +28,7 @@ class SearchParams(BaseModel):
     """Small, source-agnostic search options passed through the interface."""
 
     limit: int = 10
+    window_hours: int | None = None
 
 
 class SourceError(Exception):

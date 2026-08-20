@@ -164,6 +164,17 @@ responses/network errors -> `failed`. A missing credential pair raises
 `SourceError` before any request. See
 `docs/ADR/0004-reddit-integration.md` for the full decision record.
 
+## GDELT (evaluated, NOT enabled)
+
+A full `GDELTAdapter` for the public GDELT DOC 2.0 API exists in
+`app/sources/gdelt.py` with offline tests (`tests/test_gdelt.py`), but it is
+**deliberately not registered**. The M2-C gate evaluation was a NO-GO:
+80% of live requests returned 429 (11-13s to fail), a successful query took
+~28s and returned 10/10 non-English results, and `seendate` is a first-seen
+marker that can never be trusted as `published_at`. The adapter is kept as a
+tested, documented component that can be enabled with one
+`registry.register` line. See `docs/ADR/0005-gdelt-gate.md`.
+
 ## Manual API test (live call)
 
 ```powershell

@@ -11,6 +11,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 GUARDIAN_API_URL = "https://content.guardianapis.com/search"
 REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 REDDIT_SEARCH_URL = "https://oauth.reddit.com/search"
+GDELT_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 
 def load_fixture(name: str) -> dict:
@@ -103,3 +104,25 @@ def mock_reddit_auth_failure() -> None:
     respx.post(REDDIT_TOKEN_URL).mock(
         return_value=httpx.Response(200, json=load_fixture("reddit_token_failure.json"))
     )
+
+
+def mock_gdelt_success() -> None:
+    respx.get(GDELT_API_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("gdelt_search_success.json"))
+    )
+
+
+def mock_gdelt_empty() -> None:
+    respx.get(GDELT_API_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("gdelt_search_empty.json"))
+    )
+
+
+def mock_gdelt_timeout() -> None:
+    respx.get(GDELT_API_URL).mock(
+        side_effect=httpx.ConnectTimeout("timeout", request=httpx.Request("GET", GDELT_API_URL))
+    )
+
+
+def mock_gdelt_rate_limited() -> None:
+    respx.get(GDELT_API_URL).mock(return_value=httpx.Response(429, text="rate limited"))

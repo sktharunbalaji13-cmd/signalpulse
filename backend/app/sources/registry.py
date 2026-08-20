@@ -28,3 +28,7 @@ registry = SourceRegistry()
 registry.register("wikipedia", WikipediaAdapter())
 registry.register("guardian", GuardianAdapter())
 registry.register("reddit", RedditAdapter())
+# GDELT adapter exists (app.sources.gdelt) and is fully tested offline, but
+# it is deliberately NOT registered: the M2-C gate evaluation was a NO-GO
+# (see docs/ADR/0005-gdelt-gate.md). Re-enable with one line if the
+# decision is revisited.

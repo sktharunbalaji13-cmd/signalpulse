@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import log_event
 from app.db import session as db_session
 from app.db.models import Result, Search, SearchStatus, SourceEvent, utcnow
-from app.sources.base import SourceError
+from app.sources.base import SearchParams, SourceError
 from app.sources.registry import registry
 
 
@@ -46,7 +46,9 @@ async def _run_source(search: Search, source_name: str) -> dict:
     started = monotonic()
     with db_session.SessionLocal() as session:
         try:
-            results = await adapter.search(search.query)
+            results = await adapter.search(
+                search.query, SearchParams(window_hours=search.window_hours)
+            )
             count = _persist_results(session, search.id, results)
             latency_ms = int((monotonic() - started) * 1000)
             session.add(

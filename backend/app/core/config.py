@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     reddit_timeout_seconds: float = 5.0
     reddit_max_results: int = 10
 
+    gdelt_api_url: str = "https://api.gdeltproject.org/api/v2/doc/doc"
+    gdelt_timeout_seconds: float = 30.0
+    gdelt_max_results: int = 10
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

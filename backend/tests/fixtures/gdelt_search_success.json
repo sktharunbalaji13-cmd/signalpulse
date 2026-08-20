@@ -1,0 +1,34 @@
+{
+  "articles": [
+    {
+      "url": "https://example-news.com/2026/08/18/ai-in-healthcare",
+      "url_mobile": "https://m.example-news.com/2026/08/18/ai-in-healthcare",
+      "title": "AI adoption accelerates in hospitals worldwide",
+      "seendate": "20260818143000Z",
+      "socialimage": "https://example-news.com/img/ai-health.jpg",
+      "domain": "example-news.com",
+      "language": "eng",
+      "sourcecountry": "US"
+    },
+    {
+      "url": "https://tech-daily.example/articles/ai-weather-prediction?utm_source=gdelt&page=2",
+      "url_mobile": "",
+      "title": "New AI model predicts extreme weather a week ahead",
+      "seendate": "20260818121500Z",
+      "socialimage": "",
+      "domain": "tech-daily.example",
+      "language": "eng",
+      "sourcecountry": "GB"
+    },
+    {
+      "url": "http://regional-news.example/2026/08/17/ai-bootcamps",
+      "url_mobile": "",
+      "title": "  ",
+      "seendate": "20260817180000Z",
+      "socialimage": "",
+      "domain": "regional-news.example",
+      "language": "eng",
+      "sourcecountry": "IN"
+    }
+  ]
+}
