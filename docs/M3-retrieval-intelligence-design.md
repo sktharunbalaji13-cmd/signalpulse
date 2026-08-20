@@ -79,6 +79,15 @@ Additional guards: reference (`Wikipedia`) never merges with news/social except 
 - Normalize to [0,1]: `relevance = min(1.0, score / score(query-as-document))` (self-match is the ceiling).
 - Stopwords: minimal list only. No LLM, no embeddings.
 
+> **Superseded (M3-B, ADR 0007):** measured against the unchanged v2 corpus,
+> BM25 as the text core was a NO-GO. Per-search IDF at n≈23 topic-dense
+> candidates down-weights the central query terms and promotes rare-term
+> decoys: core nDCG@10 0.5674 vs baseline 0.6909; best variant (title-only)
+> 0.6263. The BM25 implementation survives as an experimental research
+> artifact only, explicitly not production ranking. The transparent lexical
+> baseline becomes the production relevance core, evolved carefully with each
+> improvement measured on the same corpus.
+
 ## 4. M3-C — Freshness (per source type, honest timestamps)
 
 Rules (non-negotiable):
