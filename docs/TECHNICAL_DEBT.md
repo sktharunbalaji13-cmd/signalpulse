@@ -2,7 +2,13 @@
 
 ## TZ-001: SQLite drops timezone information on datetime round-trip
 
-- **Status:** Open (accepted debt)
+- **Status:** Resolved by design — the M4 PostgreSQL migration (see
+  `docs/M4-public-deployment-design.md` §5). `DateTime(timezone=True)` becomes
+  PostgreSQL `TIMESTAMP WITH TIME ZONE` (verified by
+  `backend/tests/test_postgres_compat.py`), which round-trips timezone-aware
+  datetimes correctly; the API then serializes them with their UTC marker. A
+  live round-trip check against Neon is a pre-deployment checklist step.
+  Remains a live-verification item until M4 is deployed.
 - **Discovered:** M2-A live verification (2026-08-19)
 - **Impact:** `published_at` / `retrieved_at` are normalized to UTC by the
   adapters (verified in tests), but SQLite does not store tzinfo, so rows read
