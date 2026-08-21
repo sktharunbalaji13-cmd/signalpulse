@@ -1,0 +1,33 @@
+# M3.5 reliability & performance measurement — current pipeline vs locked targets
+
+- Status: **design + measurement only; NOT implemented, production unchanged**.
+- Locked targets: submission < 500 ms; first useful results <= 3000 ms; completed <= 5000 ms; source timeout ~5 s; no indefinite searches.
+- Controlled delays: fast 0.05 s, slow 0.5 s (proportionally below the real ~5 s timeouts).
+
+## 1. Probes (controlled, measured against the current production pipeline)
+
+| probe | behaviour                                                                                            | measured                                                                                                          | result |
+| ----- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------ |
+| P1    | submission cost < 500 ms                                                                             | {'submission_ms': 6.73}                                                                                           | PASS   |
+| P2    | happy path: first results <= 3 s, completed <= 5 s, progressive (first < done)                       | {'submission_ms': 6.82, 'first_ms': 218.4072999516502, 'done_ms': 225.51, 'duration_ms': 168, 'result_count': 13} | PASS   |
+| P3    | slow source does not hold the fast sources hostage (concurrent isolation)                            | {'first_ms': 161.38200007844716, 'done_ms': 653.59, 'slow_delay_ms': 500.0}                                       | PASS   |
+| P4    | a timing-out source is recorded and does not block the job (no indefinite wait for a failing source) | {'done_ms': 185.82}                                                                                               | PASS   |
+| P5    | one source down -> useful partial results                                                            | {'done_ms': 132.49, 'result_count': 3}                                                                            | PASS   |
+| P6    | all sources down -> clear failed state, zero results, per-source errors                              | {'done_ms': 160.73}                                                                                               | PASS   |
+| P7    | every scenario terminates within the deadline (no indefinite search in the probe matrix)             | {'max_done_ms': 653.59}                                                                                           | PASS   |
+| P8    | identical repeat searches -> identical results (cacheability evidence)                               | {'result_count': 8}                                                                                               | PASS   |
+| P9    | 4 concurrent searches complete correctly within a bounded wall clock                                 | {'wall_ms': 391.51, 'throughput': 10.22, 'statuses': ['completed', 'completed', 'completed', 'completed']}        | PASS   |
+| P10   | results endpoint latency with a large result set (p50 < 500 ms)                                      | {'p50_ms': 10.81}                                                                                                 | PASS   |
+| P11   | credentials never exposed in API responses (backend-only)                                            | {'leaked_urls': []}                                                                                               | PASS   |
+
+All 11 probes must pass; a FAIL is a finding to close in the M3.5 implementation checkpoint.
+
+## 2. Findings
+
+- Submission is a DB insert (P1) — comfortably under 500 ms.
+- Happy path is progressive (P2): first useful results appear well before completion and both are within the 3 s / 5 s targets when sources are fast.
+- Slow-source isolation holds (P3): a slow source does not delay the fast ones; a timing-out or failing source is recorded and does not block completion (P4/P5); all-sources-down gives a clear failed state with zero results (P6).
+- Every scenario terminates within the deadline (P7) — but the guarantee currently rests on each adapter enforcing its own httpx timeout. The pipeline has NO per-source ``asyncio.wait_for``: a source that hangs without raising would block the whole job. This is the central design gap (§15.3.1) the implementation must close for a hard 'no indefinite search' guarantee.
+- Repeat searches are deterministic (P8) => completed results are cacheable; caching is deferred until implemented and measured to help (§15.3.5).
+- Concurrent searches complete correctly (P9) on SQLite at this scale; watch for write contention at higher N / under M4 hosting.
+- Results endpoint is fast on a 60-row set (P10); credentials never appear in API responses (P11).

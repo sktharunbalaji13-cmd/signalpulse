@@ -361,3 +361,97 @@ relevant — coverage explains the gap).
 5. **M3-D**: combine + weights + tie-break + diversity.
 6. **M3-E**: filters (repo layer only).
 7. Milestone report with real eval numbers.
+
+## 15. M3.5 — Public reliability & performance (measurement first)
+
+### 15.0 Product requirement and locked priorities
+
+A normal person opens the website, searches, and gets useful information without
+unnecessary delay. Priority is locked: **Reliability → Speed → Source quality →
+Provenance → Intelligence → AI** (PROJECT_SPEC §6A). M0–M3 is frozen and
+complete: M3.5 changes **no** retrieval / dedup / freshness / C4 ranking / M3-E
+filter semantics — it adds reliability + performance infrastructure only.
+
+### 15.1 Locked targets (the measurement bar)
+
+| Metric | Target |
+|---|---|
+| Search submission (POST accepted) | < 500 ms |
+| First useful results | ≤ 3 s |
+| Completed search | ≤ 5 s |
+| Upstream source timeout | ~5 s |
+| Indefinite searches | never (every search terminates) |
+
+### 15.2 Current baseline (measured, no behavior change)
+
+`eval/performance_eval.py` measures the **current** pipeline against the bar
+without touching production behavior. Structural findings:
+
+1. **Submission is cheap** (DB insert + 202) — well under 500 ms (P1).
+2. **Happy path has huge headroom**: concurrent fan-out persists each source's
+   results as it completes, so first useful results appear well before
+   completion (P2).
+3. **Slow-source isolation works today** (per-source sessions + `asyncio.gather`
+   with `return_exceptions`): one slow/failing source does not delay the
+   others beyond its own budget; partial results are served (P3/P5).
+4. **Timeout path exists per adapter** (httpx `timeout=...` → `SourceError(timeout)`
+   recorded) but is enforced **inside each adapter only**. The pipeline has
+   **no `asyncio.wait_for` per source**: a source that hangs without raising
+   would block the whole job — the "no indefinite search" guarantee currently
+   rests entirely on every adapter obeying its httpx timeout (P7 shows the
+   gap; the probes can only prove sources that *raise* are isolated).
+5. **Worst-case completion is tight**: with all sources at the ~5 s timeout,
+   `completed_at ≈ slowest source (5 s) + post-pass` (dedup O(n²) + ranking) —
+   right at the ≤5 s boundary. The post-pass budget must be measured and kept
+   small (P-post).
+6. **No rate limiting, no caching, no per-request latency metrics** (only
+   structured logs + `search.duration_ms`).
+7. **Progressive delivery is structurally possible**: rows persist incrementally
+   and the results endpoint serves whatever exists regardless of status
+   (fallback ordering while unranked). No UI yet.
+8. **Credentials are backend-only** (verified, P11); CORS is origin-restricted.
+9. **SQLite is single-writer** — concurrent search writes may contend (P9).
+
+### 15.3 Design decisions (M3.5 implementation checkpoint — NOT now)
+
+1. **Pipeline-level per-source timeout** — wrap each source task in
+   `asyncio.wait_for(task, settings.source_timeout_seconds)` (~5 s, defense in
+   depth on top of per-adapter httpx timeouts). This is what guarantees **no
+   indefinite searches** regardless of adapter behaviour.
+2. **Timeout budget alignment** — choose the pipeline source timeout (e.g. 4.5 s)
+   + measured post-pass budget + scheduling margin so worst-case `completed ≤ 5 s`.
+   Measure the post-pass (dedup+ranking) cost at realistic N and keep it bounded
+   (already O(n²) on ≤ 500, ~30 typical).
+3. **Progressive delivery** — surface a `status`/`done` marker on the results
+   response so the browser renders the fallback (unranked) order immediately and
+   re-renders the ranked order on completion; avoid the "wait for every source"
+   UX. Zero retrieval/ranking change.
+4. **Rate limiting / abuse protection** — token bucket on `POST /searches`
+   (per client IP) + a global in-flight-search cap → explicit 429 on burst;
+   validated query bounds already exist (200-char, page/per_page caps). No API
+   keys for public clients (credentials remain backend-only).
+5. **Caching strategy** — cacheability is proven by determinism (P8: identical
+   repeat queries → identical results). Design: cache completed results keyed by
+   `normalized_query + window_hours + M3-E filter params`, TTL-bound, preserving
+   provenance (never serve stale provenance; invalidate on expiry). Never cache
+   partial/in-progress. Only implement if measurement shows it helps.
+6. **Observability / latency metrics** — record per-stage timings
+   (submit → first-persist → sources done → post-pass → completed) in
+   `search.stats` and structured logs; expose latency on the status response.
+7. **Load behaviour** — measure N concurrent searches on SQLite; if write
+   contention appears, serialize writes / queue (design only).
+
+### 15.4 M3.5 acceptance criteria (the bar the implementation must meet)
+
+| # | Criterion |
+|---|---|
+| A | Every search terminates (pipeline-level timeout present and tested); no indefinite search. |
+| B | Submission < 500 ms. |
+| C | Happy-path first useful results ≤ 3 s and completed ≤ 5 s. |
+| D | Slow-source isolation: one slow/failing source does not delay others beyond its own budget; partial results served. |
+| E | All-sources-down → clear failed state, zero results, no broken page. |
+| F | Rate limiting present and tested (burst → 429). |
+| G | Caching (if implemented) correct: only completed results, provenance-preserving, TTL-bound. |
+| H | Concurrent load: N simultaneous searches correct, bounded duration, no DB errors. |
+| I | Credentials never exposed to the browser. |
+| J | M0–M3 semantics unchanged: retrieval/dedup/ranking/filter bit-identical (existing suites stay green). |
