@@ -345,7 +345,7 @@ relevant — coverage explains the gap).
 - **M3-B**: nDCG@10 ≥ 0.75 (target) on offline eval; `rank_components` populated and interpretable.
 - **M3-C**: per-type curves unit-tested; no fabricated timestamps (property test); GDELT `seendate` remains untrusted.
 - **M3-D** (CLOSED): C4 accepted as the production model; `app/services/ranking.py` implements it unchanged (validated weights, diversity pass, deterministic total order, duplicate awareness); pipeline persists `rank_score`/`rank_components`/`rank_position` at completion; results endpoint serves rank order; all 9 behavioural probes pass through the production ranker and the production ranker reproduces C4's corpus behaviour bit-for-bit. BM25 is NOT used (ADR 0007).
-- **M3-E**: filter semantics per design on mocked data — query-time views only (no pipeline/schema change); all 11 behavioural probes pass; invalid filters → explicit 422; deterministic pagination over the filtered view; provenance untouched.
+- **M3-E** (CLOSED): query-time filter view on `GET /searches/{id}/results` — `source_type` (repeatable), `time=24h|7d|30d|all`, `duplicates=all|canonical`, `language` (exact match, `[a-z]{2,3}`), over the frozen `rank_position` order with `page`/`per_page` on the filtered view. Time cutoff anchored to `search.completed_at` (permanent view); reference always included in time views; news/social with NULL `published_at` excluded except `all`; invalid values → explicit 422; read-only projection (no re-ranking, no writes, no retrieval). All 11 behavioural probes pass as production API acceptance tests (`tests/test_search_filters.py`).
 - **Global**: no new network calls, no LLM/RAG/agents/caching/Redis/Celery; ruff clean; CI green.
 
 ## 13. Dependency

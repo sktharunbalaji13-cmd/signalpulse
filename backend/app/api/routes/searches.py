@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import case, func, select
@@ -17,6 +17,7 @@ from app.schemas.search import (
     SearchStatusResponse,
     SourceStatus,
 )
+from app.services.filters import filter_conditions
 from app.services.search_pipeline import run_search_job
 
 router = APIRouter(tags=["searches"])
@@ -103,16 +104,33 @@ async def get_search_results(
     session: SessionDep,
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 20,
+    source_type: Annotated[
+        list[Literal["news", "social", "reference"]] | None, Query()
+    ] = None,
+    time: Annotated[Literal["24h", "7d", "30d", "all"], Query()] = "all",
+    duplicates: Annotated[Literal["all", "canonical"], Query()] = "all",
+    language: Annotated[str | None, Query(pattern=r"^[a-z]{2,3}$")] = None,
 ) -> SearchResultsResponse:
-    _get_search_or_404(session, search_id)
-    total = _count_results(session, search_id)
+    search = _get_search_or_404(session, search_id)
+    # M3-E: filters are a read-only view over the persisted rank_position order
+    # (design §6). Conditions select a subset; ordering and pagination then
+    # operate on that subset. No re-ranking, no writes, no retrieval.
+    conditions = [Result.search_id == search_id] + filter_conditions(
+        source_types=source_type,
+        time_window=time,
+        duplicates=duplicates,
+        language=language,
+        completed_at=search.completed_at,
+        created_at=search.created_at,
+    )
+    total = session.scalar(select(func.count()).select_from(Result).where(*conditions)) or 0
     # M3-D: serve results in the ranker's final order (rank_position, the
     # C4 total order incl. the diversity pass). Unranked rows (search still
     # running) fall back to the tie-break keys, deterministically.
     rows = (
         session.scalars(
             select(Result)
-            .where(Result.search_id == search_id)
+            .where(*conditions)
             .order_by(
                 Result.rank_position.asc().nullslast(),
                 case(
