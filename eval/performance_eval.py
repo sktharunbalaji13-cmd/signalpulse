@@ -477,6 +477,70 @@ def _probe_p11_no_credential_leak() -> dict:
         settings.guardian_api_key, settings.reddit_client_id, settings.reddit_client_secret = original
 
 
+def _probe_p12_postpass_budget() -> dict:
+    adapters = {
+        "guardian": FakeAdapter("The Guardian", "news", FAST_DELAY, 30),
+        "wire": FakeAdapter("Global Wire", "news", FAST_DELAY, 30),
+        "wiki": FakeAdapter("Wikipedia", "reference", FAST_DELAY, 30),
+    }
+    with _env(adapters) as (factory, client):
+        run = _run_job(factory, client, adapters)
+        search = _search_row(factory, run["search_id"])
+        postpass = search.stats["timing_ms"]["postpass_ms"]
+        total = search.duration_ms
+        passed = postpass < 2000
+        return {
+            "name": "P12",
+            "description": "post-pass (dedup + ranking) budget stays small at ~90 rows",
+            "metrics": {"postpass_ms": postpass, "total_ms": total, "rows": 90},
+            "passed": passed,
+            "detail": f"postpass_ms={postpass} total_ms={total} (90 rows)",
+        }
+
+
+def _probe_p13_worst_case_timeout_budget() -> dict:
+    """A hung source is bounded by the pipeline timeout; completed stays in budget."""
+    _load_backend()
+    from app.core.config import settings
+
+    original = settings.source_timeout_seconds
+    settings.source_timeout_seconds = 0.3
+    try:
+        adapters = {
+            "hung": FakeAdapter("Hung Source", "news", delay=1000.0, count=0),
+            "guardian": FakeAdapter("The Guardian", "news", FAST_DELAY, 20),
+            "wiki": FakeAdapter("Wikipedia", "reference", FAST_DELAY, 20),
+        }
+        with _env(adapters) as (factory, client):
+            run = _run_job(factory, client, adapters)
+            search = _search_row(factory, run["search_id"])
+            timing = search.stats["timing_ms"]
+            passed = (
+                run["status"] == "partial"
+                and timing["sources_ms"] >= 250
+                and timing["sources_ms"] < 3000
+                and run["done_ms"] < 5000.0
+            )
+            return {
+                "name": "P13",
+                "description": "worst case: a hung source is bounded by the pipeline timeout; completed within the <= 5 s budget",
+                "metrics": {
+                    "timeout_s": 0.3,
+                    "sources_ms": timing["sources_ms"],
+                    "postpass_ms": timing["postpass_ms"],
+                    "completed_ms": run["done_ms"],
+                    "status": run["status"],
+                },
+                "passed": passed,
+                "detail": (
+                    f"status={run['status']} sources={timing['sources_ms']} "
+                    f"postpass={timing['postpass_ms']} completed={run['done_ms']}"
+                ),
+            }
+    finally:
+        settings.source_timeout_seconds = original
+
+
 def probes() -> list[dict]:
     # P7 needs the completion times of the other job probes; run those first.
     p2 = _probe_p2_happy_path()
@@ -497,6 +561,8 @@ def probes() -> list[dict]:
         _probe_p9_concurrent_load(),
         _probe_p10_endpoint_latency(),
         _probe_p11_no_credential_leak(),
+        _probe_p12_postpass_budget(),
+        _probe_p13_worst_case_timeout_budget(),
     ]
 
 
@@ -538,6 +604,9 @@ def _run_probes() -> dict:
 
 
 def _run_report() -> dict:
+    _load_backend()
+    from app.core.config import settings
+
     return {
         "schema": "signalpulse-performance-measurement",
         "targets": {
@@ -547,7 +616,8 @@ def _run_report() -> dict:
             "source_timeout_seconds": 5,
             "no_indefinite": True,
         },
-        "status": "design + measurement only; NOT implemented, production unchanged",
+        "pipeline_source_timeout_seconds": settings.source_timeout_seconds,
+        "status": "design + measurement; pipeline-level source timeout IMPLEMENTED (design 15.3.1), production otherwise unchanged",
         "fast_delay_s": FAST_DELAY,
         "slow_delay_s": SLOW_DELAY,
         "probes": _run_probes(),
@@ -568,6 +638,8 @@ def _render_markdown(report: dict) -> str:
         "# M3.5 reliability & performance measurement — current pipeline vs locked targets",
         "",
         f"- Status: **{report['status']}**.",
+        f"- Pipeline-level source timeout: `{report['pipeline_source_timeout_seconds']}` s "
+        "(asyncio.wait_for per source; a hung adapter is cancelled, so no indefinite search).",
         f"- Locked targets: submission < {report['targets']['submission_ms']} ms; first useful results <= {report['targets']['first_results_ms']} ms; "
         f"completed <= {report['targets']['completed_ms']} ms; source timeout ~{report['targets']['source_timeout_seconds']} s; no indefinite searches.",
         f"- Controlled delays: fast {report['fast_delay_s']} s, slow {report['slow_delay_s']} s (proportionally below the real ~5 s timeouts).",
@@ -597,10 +669,12 @@ def _render_markdown(report: dict) -> str:
         "- Slow-source isolation holds (P3): a slow source does not delay the fast ones; a timing-out or failing "
         "source is recorded and does not block completion (P4/P5); all-sources-down gives a clear failed state "
         "with zero results (P6).",
-        "- Every scenario terminates within the deadline (P7) — but the guarantee currently rests on each adapter "
-        "enforcing its own httpx timeout. The pipeline has NO per-source ``asyncio.wait_for``: a source that hangs "
-        "without raising would block the whole job. This is the central design gap (§15.3.1) the implementation "
-        "must close for a hard 'no indefinite search' guarantee.",
+        "- Every scenario terminates within the deadline (P7) — and now the pipeline enforces a per-source "
+        "``asyncio.wait_for`` (P13): a source that hangs without raising is cancelled and recorded as a timeout, "
+        "so 'no indefinite search' is a hard guarantee independent of adapter behaviour.",
+        "- Post-pass (dedup + ranking) budget is small at ~90 rows (P12); worst case completed = source timeout "
+        f"({report['pipeline_source_timeout_seconds']} s configured) + post-pass + margin stays within the "
+        "locked <= 5 s target (P13).",
         "- Repeat searches are deterministic (P8) => completed results are cacheable; caching is deferred until "
         "implemented and measured to help (§15.3.5).",
         "- Concurrent searches complete correctly (P9) on SQLite at this scale; watch for write contention at "

@@ -7,6 +7,12 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    # M3.5 pipeline-level per-source timeout (design §15.3.1): bounds a single
+    # source unit (fetch + persist) with asyncio.wait_for so a hung adapter can
+    # never block the whole search. Chosen so worst-case completed stays within
+    # the locked <= 5 s target once the measured post-pass budget is added.
+    source_timeout_seconds: float = 4.5
+
     database_url: str = "sqlite:///./signalpulse.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

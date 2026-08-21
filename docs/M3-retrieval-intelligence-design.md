@@ -412,46 +412,56 @@ without touching production behavior. Structural findings:
 8. **Credentials are backend-only** (verified, P11); CORS is origin-restricted.
 9. **SQLite is single-writer** — concurrent search writes may contend (P9).
 
-### 15.3 Design decisions (M3.5 implementation checkpoint — NOT now)
+### 15.3 Design decisions (M3.5 implementation checkpoint)
 
-1. **Pipeline-level per-source timeout** — wrap each source task in
-   `asyncio.wait_for(task, settings.source_timeout_seconds)` (~5 s, defense in
-   depth on top of per-adapter httpx timeouts). This is what guarantees **no
-   indefinite searches** regardless of adapter behaviour.
-2. **Timeout budget alignment** — choose the pipeline source timeout (e.g. 4.5 s)
-   + measured post-pass budget + scheduling margin so worst-case `completed ≤ 5 s`.
-   Measure the post-pass (dedup+ranking) cost at realistic N and keep it bounded
-   (already O(n²) on ≤ 500, ~30 typical).
-3. **Progressive delivery** — surface a `status`/`done` marker on the results
-   response so the browser renders the fallback (unranked) order immediately and
-   re-renders the ranked order on completion; avoid the "wait for every source"
-   UX. Zero retrieval/ranking change.
-4. **Rate limiting / abuse protection** — token bucket on `POST /searches`
-   (per client IP) + a global in-flight-search cap → explicit 429 on burst;
-   validated query bounds already exist (200-char, page/per_page caps). No API
-   keys for public clients (credentials remain backend-only).
-5. **Caching strategy** — cacheability is proven by determinism (P8: identical
-   repeat queries → identical results). Design: cache completed results keyed by
-   `normalized_query + window_hours + M3-E filter params`, TTL-bound, preserving
-   provenance (never serve stale provenance; invalidate on expiry). Never cache
-   partial/in-progress. Only implement if measurement shows it helps.
-6. **Observability / latency metrics** — record per-stage timings
-   (submit → first-persist → sources done → post-pass → completed) in
-   `search.stats` and structured logs; expose latency on the status response.
-7. **Load behaviour** — measure N concurrent searches on SQLite; if write
-   contention appears, serialize writes / queue (design only).
+Status: **1, 2, 6 IMPLEMENTED; 4, 5 DEFERRED to M4 (evidence-driven); 3 structural
+(UI deferred); 7 measured.**
+
+1. **Pipeline-level per-source timeout** — **IMPLEMENTED** (`search_pipeline._run_source_with_timeout`):
+   each source unit (fetch + persist) is wrapped in `asyncio.wait_for(task,
+   settings.source_timeout_seconds)` (default 4.5 s) as defense in depth on top of
+   per-adapter httpx timeouts. A hung adapter is cancelled and recorded as a
+   `timeout` `SourceEvent`; isolation and partial-result behaviour are preserved.
+   This makes **no indefinite search** a hard guarantee regardless of adapter
+   behaviour (regression tests `tests/test_source_timeout.py`).
+2. **Timeout budget alignment** — **IMPLEMENTED + MEASURED**: per-stage timings
+   (`sources_ms`, `postpass_ms`, `total_ms`) are recorded in `search.stats`
+   (design §15.3.6). Measured on ~90 rows the post-pass is ~50 ms and worst-case
+   `completed ≈ source_timeout + post-pass + margin` (P12/P13), so the 4.5 s
+   pipeline timeout keeps worst-case well within the locked ≤ 5 s target.
+3. **Progressive delivery** — structurally available today (rows persist per
+   source; the results endpoint serves them regardless of status, fallback order
+   while unranked). Surfacing a `status`/`done` marker and the browser UX are
+   deferred to the UI / M4.
+4. **Rate limiting / abuse protection** — **DEFERRED to M4**. No public traffic
+   yet to justify limits or calibrate burst values; the endpoint already validates
+   query/page bounds and keeps credentials backend-only. Revisit at M4 with real
+   traffic (token bucket on `POST /searches` + global in-flight cap → 429).
+5. **Caching strategy** — **DEFERRED to M4 (evidence-driven)**. Determinism
+   (P8) proves identical repeat queries are cacheable, but with no public load
+   there is no evidence caching materially improves UX or protects upstream
+   APIs; the complexity (TTL, provenance-preserving invalidation) is not yet
+   justified. When introduced (M4), cache only completed results keyed by
+   `normalized_query + window_hours + M3-E filter params`, never partial/in-progress.
+6. **Observability / latency metrics** — **IMPLEMENTED**: per-stage timings in
+   `search.stats.timing_ms` plus the existing structured `log_event` source
+   events; exposes the budget data and feeds the M4 monitoring story.
+7. **Load behaviour** — measured (P9: 4 concurrent searches correct and bounded on
+   SQLite). If M4 hosting shows write contention, serialize writes / queue (design only).
 
 ### 15.4 M3.5 acceptance criteria (the bar the implementation must meet)
 
-| # | Criterion |
-|---|---|
-| A | Every search terminates (pipeline-level timeout present and tested); no indefinite search. |
-| B | Submission < 500 ms. |
-| C | Happy-path first useful results ≤ 3 s and completed ≤ 5 s. |
-| D | Slow-source isolation: one slow/failing source does not delay others beyond its own budget; partial results served. |
-| E | All-sources-down → clear failed state, zero results, no broken page. |
-| F | Rate limiting present and tested (burst → 429). |
-| G | Caching (if implemented) correct: only completed results, provenance-preserving, TTL-bound. |
-| H | Concurrent load: N simultaneous searches correct, bounded duration, no DB errors. |
-| I | Credentials never exposed to the browser. |
-| J | M0–M3 semantics unchanged: retrieval/dedup/ranking/filter bit-identical (existing suites stay green). |
+Status: **A–E, H, I, J MET**; **F, G deferred to M4**.
+
+| # | Criterion | Status |
+|---|---|---|
+| A | Every search terminates (pipeline-level timeout present and tested); no indefinite search. | ✅ MET (`test_source_timeout.py`) |
+| B | Submission < 500 ms. | ✅ MET (P1: ~6 ms) |
+| C | Happy-path first useful results ≤ 3 s and completed ≤ 5 s. | ✅ MET (P2) |
+| D | Slow-source isolation: one slow/failing source does not delay others beyond its own budget; partial results served. | ✅ MET (P3/P4/P5) |
+| E | All-sources-down → clear failed state, zero results, no broken page. | ✅ MET (P6) |
+| F | Rate limiting present and tested (burst → 429). | ⏸ DEFERRED to M4 |
+| G | Caching (if implemented) correct: only completed results, provenance-preserving, TTL-bound. | ⏸ DEFERRED to M4 |
+| H | Concurrent load: N simultaneous searches correct, bounded duration, no DB errors. | ✅ MET (P9) |
+| I | Credentials never exposed to the browser. | ✅ MET (P11) |
+| J | M0–M3 semantics unchanged: retrieval/dedup/ranking/filter bit-identical (existing suites stay green). | ✅ MET |

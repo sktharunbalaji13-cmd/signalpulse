@@ -17,7 +17,7 @@ from eval import performance_eval as pe
 
 def test_every_probe_passes():
     rows = pe._run_probes()["rows"]
-    assert {r["name"] for r in rows} == {f"P{i}" for i in range(1, 12)}
+    assert {r["name"] for r in rows} == {f"P{i}" for i in range(1, 14)}
     for row in rows:
         assert row["passed"] is True, (row["name"], row["detail"])
 

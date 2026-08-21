@@ -3,6 +3,7 @@ from time import monotonic
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import log_event
 from app.db import session as db_session
 from app.db.models import (
@@ -217,6 +218,41 @@ def _apply_ranking(session: Session, search_id: str) -> dict:
     return {"ranked": len(ranked)}
 
 
+async def _run_source_with_timeout(search: Search, source_name: str) -> dict:
+    """Run one source bounded by the pipeline-level timeout (design §15.3.1).
+
+    ``asyncio.wait_for`` cancels a source that hangs without raising, so a
+    misbehaving adapter can never block the whole search indefinitely. The
+    per-adapter httpx timeout is defense in depth, not the guarantee. A timed-out
+    source is recorded as a ``timeout`` ``SourceEvent`` and the job continues
+    (isolation and partial-result behaviour are preserved).
+    """
+    timeout = settings.source_timeout_seconds
+    try:
+        return await asyncio.wait_for(_run_source(search, source_name), timeout=timeout)
+    except TimeoutError:
+        adapter = registry.get(source_name)
+        display = adapter.source_name if adapter else source_name
+        log_event("source_failed", search_id=search.id, source=display, error="timeout")
+        with db_session.SessionLocal() as session:
+            session.add(
+                SourceEvent(
+                    search_id=search.id,
+                    source_name=display,
+                    status="timeout",
+                    latency_ms=int(timeout * 1000),
+                    error_type="timeout",
+                    error_message=f"source exceeded pipeline timeout of {timeout:g}s",
+                )
+            )
+            session.commit()
+        return {
+            "name": display,
+            "status": "timeout",
+            "error": f"pipeline timeout after {timeout:g}s",
+        }
+
+
 async def run_search_job(search_id: str) -> None:
     """Background job: run every enabled source concurrently, persist outcomes.
 
@@ -232,10 +268,12 @@ async def run_search_job(search_id: str) -> None:
         if search is None:
             log_event("search_failed", search_id=search_id, error="search row missing")
             return
+    sources_started = monotonic()
     source_statuses = await asyncio.gather(
-        *(_run_source(search, name) for name in sorted(registry.names())),
+        *(_run_source_with_timeout(search, name) for name in sorted(registry.names())),
         return_exceptions=True,
     )
+    sources_ms = int((monotonic() - sources_started) * 1000)
     if any(isinstance(status, BaseException) for status in source_statuses):
         source_statuses = [
             {"name": f"source-{index}", "status": "failed", "error": "unexpected error"}
@@ -261,9 +299,20 @@ async def run_search_job(search_id: str) -> None:
         search.status = status
         search.completed_at = utcnow()
         search.duration_ms = int((monotonic() - started) * 1000)
+        postpass_started = monotonic()
         dedup_stats = _annotate_duplicates(session, search_id)
         ranking_stats = _apply_ranking(session, search_id)
-        search.stats = {"sources": source_statuses, "dedup": dedup_stats, "ranking": ranking_stats}
+        postpass_ms = int((monotonic() - postpass_started) * 1000)
+        search.stats = {
+            "sources": source_statuses,
+            "dedup": dedup_stats,
+            "ranking": ranking_stats,
+            "timing_ms": {
+                "sources_ms": sources_ms,
+                "postpass_ms": postpass_ms,
+                "total_ms": search.duration_ms,
+            },
+        }
         session.commit()
         log_event(
             "search_completed" if status == SearchStatus.COMPLETED.value else "search_failed",
