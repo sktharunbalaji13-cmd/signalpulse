@@ -13,6 +13,17 @@ class Settings(BaseSettings):
     # the locked <= 5 s target once the measured post-pass budget is added.
     source_timeout_seconds: float = 4.5
 
+    # M4 production CORS (design M4 §7): exact allow-list of frontend origins;
+    # credentials are off for the public API.
+    cors_allow_credentials: bool = False
+
+    # M4 in-process rate limiting + in-flight protection (design M4 §12).
+    # Per-client-IP sliding window on POST /searches and a global cap on the
+    # number of concurrently running searches -> HTTP 429 when exceeded.
+    rate_limit_requests: int = 30
+    rate_limit_window_seconds: float = 60.0
+    max_in_flight_searches: int = 8
+
     database_url: str = "sqlite:///./signalpulse.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

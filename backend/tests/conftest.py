@@ -23,6 +23,18 @@ def clean_secrets(monkeypatch):
     monkeypatch.setattr(settings, "reddit_client_secret", "")
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Start each test with an empty rate-limit bucket (the limiter is a
+    process-wide singleton keyed by client IP, so it must not accumulate
+    across tests or later POSTs would spuriously 429)."""
+    from app.services.rate_limit import reset_limiter
+
+    reset_limiter()
+    yield
+    reset_limiter()
+
+
 @pytest.fixture()
 def session_factory(monkeypatch):
     engine = create_engine(

@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
@@ -18,11 +18,17 @@ from app.schemas.search import (
     SourceStatus,
 )
 from app.services.filters import filter_conditions
+from app.services.rate_limit import enforce_create_limits
 from app.services.search_pipeline import run_search_job
 
 router = APIRouter(tags=["searches"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+async def _enforce_create_limits(request: Request, session: SessionDep) -> None:
+    """M4 rate limiting + in-flight protection on search creation (HTTP 429)."""
+    enforce_create_limits(request, session)
 
 
 def normalize_query(query: str) -> str:
@@ -41,7 +47,12 @@ def _count_results(session: Session, search_id: str) -> int:
     return session.scalar(count) or 0
 
 
-@router.post("/searches", status_code=202, response_model=SearchCreated)
+@router.post(
+    "/searches",
+    status_code=202,
+    response_model=SearchCreated,
+    dependencies=[Depends(_enforce_create_limits)],
+)
 async def create_search(
     payload: SearchCreate,
     background_tasks: BackgroundTasks,

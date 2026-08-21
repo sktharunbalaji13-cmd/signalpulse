@@ -160,9 +160,36 @@ instances or durable queuing needs (PROJECT_SPEC §11).
 - Verify TZ-001 live: a `published_at`/`retrieved_at` in results serializes with
   a UTC marker and renders correctly in the browser.
 
----
-
 # Pre-deployment checklist (the gate — run at the M4 implementation checkpoint)
+
+## 16. Implementation status (M4 checkpoint)
+
+### Implemented + verified locally (production-equivalent)
+- **PostgreSQL + psycopg**: `psycopg[binary]` added; the ORM runs against real
+  Postgres (verified via Docker Postgres, same engine as Neon).
+- **Alembic migrations**: baseline migration created (`migrations/versions/`),
+  applied to Postgres — 5 tables + `alembic_version`; `DateTime(timezone=True)`
+  → `timestamp with time zone`, JSON columns → `JSON`.
+- **TZ-001**: real Postgres round-trip verified — `published_at` keeps `tzinfo`
+  and serializes with the `+00:00` UTC marker (`test_postgres_live.py`).
+- **Postgres schema/query verification**: `test_postgres_compat.py` (dialect
+  compile) + `test_postgres_live.py` (live, gated on `POSTGRES_TEST_URL`).
+- **Production CORS**: `cors_allow_credentials` setting (default False, public API).
+- **Health/readiness**: `/health` now does a DB reachability check → 200/`db=ok`
+  when ready, 503/`db=down` when not (`test_production_hardening.py`).
+- **Request observability**: `RequestLoggingMiddleware` logs
+  method/path/status/latency_ms; stage timings already in `search.stats.timing_ms`.
+- **In-process rate limiting + in-flight cap**: per-IP sliding window on
+  `POST /searches` + global running-search cap → HTTP 429
+  (`app/services/rate_limit.py`, tested).
+- **Frontend production config**: `frontend/.env.production.example`
+  (`VITE_API_BASE`); production build verified.
+
+### Pending — live deployment (requires the user's Render + Neon accounts)
+Render web service + static site, Neon Postgres provisioning, HTTPS/domain,
+environment/secret injection, real-world latency/failure verification, and the
+M4 go/no-go gate. These are external steps that need real credentials/accounts
+and are executed via the pre-deployment checklist (§13).
 
 ## A. Postgres readiness
 - [ ] `psycopg[binary]` added to `backend/pyproject.toml`.
