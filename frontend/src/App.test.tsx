@@ -197,6 +197,28 @@ describe('App', () => {
     expect(await screen.findByText('No results found.')).toBeInTheDocument()
   })
 
+  it('shows a filter-aware empty message when filters are active', async () => {
+    mockCompletedSearch(0)
+    mockedApi.getResults.mockClear()
+    mockedApi.getResults.mockResolvedValue({
+      total: 0,
+      page: 1,
+      per_page: 20,
+      items: [],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await screen.findByText('No results found.')
+
+    await user.selectOptions(screen.getByLabelText('Time'), '7d')
+
+    expect(
+      await screen.findByText(/No results match these filters/),
+    ).toBeInTheDocument()
+  })
+
   it('applies the time filter as a query-time view', async () => {
     mockCompletedSearch(3)
     const user = userEvent.setup()

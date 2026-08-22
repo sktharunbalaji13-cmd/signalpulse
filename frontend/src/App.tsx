@@ -57,6 +57,11 @@ function App() {
     search.viewState === 'running' ||
     search.viewState === 'completed' ||
     search.viewState === 'partial'
+  const filtersActive =
+    search.filters.sourceTypes.length > 0 ||
+    search.filters.time !== 'all' ||
+    search.filters.duplicates === 'canonical' ||
+    search.filters.language !== ''
 
   return (
     <main className="app">
@@ -132,7 +137,11 @@ function App() {
 
               {search.results.length === 0 ? (
                 <p className="status-text">
-                  {search.page > 1 ? 'No results on this page.' : 'No results found.'}
+                  {search.page > 1
+                    ? 'No results on this page.'
+                    : filtersActive
+                      ? 'No results match these filters. Try widening the time window or selecting more source types.'
+                      : 'No results found.'}
                 </p>
               ) : (
                 <>
