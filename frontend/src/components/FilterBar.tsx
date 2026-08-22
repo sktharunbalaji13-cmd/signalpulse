@@ -36,6 +36,15 @@ export function FilterBar({ filters, disabled = false, onChange }: FilterBarProp
   }
 
   const showLanguageHint = languageDraft !== '' && !/^[a-z]{2,3}$/.test(languageDraft)
+  const filtersActive =
+    filters.sourceTypes.length > 0 ||
+    filters.time !== 'all' ||
+    filters.duplicates === 'canonical' ||
+    filters.language !== ''
+
+  const clearFilters = () => {
+    onChange({ sourceTypes: [], time: 'all', duplicates: 'all', language: '' })
+  }
 
   return (
     <fieldset className="filter-bar" disabled={disabled}>
@@ -96,6 +105,12 @@ export function FilterBar({ filters, disabled = false, onChange }: FilterBarProp
             onChange={(event) => handleLanguage(event.target.value)}
           />
         </label>
+
+        {filtersActive && (
+          <button type="button" className="filter-clear" onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
       </div>
       {showLanguageHint && (
         <p className="filter-hint">Language must be a 2–3 letter code like en.</p>

@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react'
 
 import { api } from './api/client'
+import { EmptyState } from './components/EmptyState'
 import { FilterBar } from './components/FilterBar'
 import { Pagination } from './components/Pagination'
 import { ResultCard } from './components/ResultCard'
+import { ResultSkeleton } from './components/ResultSkeleton'
 import { SearchBar } from './components/SearchBar'
 import { SearchHistory } from './components/SearchHistory'
 import { SourceStatusSummary } from './components/SourceStatusSummary'
 import { StatusBanner } from './components/StatusBanner'
-import { useSearch } from './hooks/useSearch'
+import { useSearch, type Filters } from './hooks/useSearch'
 
 const EXAMPLE_QUERIES = ['artificial intelligence', 'quantum computing', 'climate policy']
 const PER_PAGE = 20
+const DEFAULT_FILTERS: Filters = {
+  sourceTypes: [],
+  time: 'all',
+  duplicates: 'all',
+  language: '',
+}
 
 function App() {
   const search = useSearch()
@@ -62,39 +70,49 @@ function App() {
     search.filters.time !== 'all' ||
     search.filters.duplicates === 'canonical' ||
     search.filters.language !== ''
+  const engineOnline = apiStatus === 'ok'
 
   return (
     <main className="app">
       <header className="hero">
-        <h1>SignalPulse</h1>
+        <div className="brand-row">
+          <h1>SignalPulse</h1>
+          <span className="status-pill" role="status">
+            <span
+              className={`status-dot ${engineOnline ? 'status-dot--pulse' : 'status-dot--offline'}`}
+              aria-hidden="true"
+            />
+            {engineOnline ? 'Intelligence engine online' : 'Engine offline'}
+          </span>
+        </div>
         <p className="subtitle">
           Real-time multi-source information intelligence — news, reference and social results,
           ranked and de-duplicated in one place.
         </p>
-        <p className="api-badge">API {apiStatus}</p>
       </header>
 
-      <SearchBar
-        disabled={busy || rateLimited}
-        label={busy ? 'Searching…' : 'Search'}
-        onSearch={search.runSearch}
-      />
-
-      {search.viewState === 'idle' && (
-        <section className="examples" aria-label="Example searches">
-          <p className="examples__label">Try:</p>
-          {EXAMPLE_QUERIES.map((example) => (
-            <button
-              key={example}
-              type="button"
-              className="example-chip"
-              onClick={() => void search.runSearch(example)}
-            >
-              {example}
-            </button>
-          ))}
-        </section>
-      )}
+      <div className="search-shell">
+        <SearchBar
+          disabled={busy || rateLimited}
+          label={busy ? 'Searching…' : 'Search'}
+          onSearch={search.runSearch}
+        />
+        {search.viewState === 'idle' && (
+          <section className="examples" aria-label="Example searches">
+            <p className="examples__label">Try:</p>
+            {EXAMPLE_QUERIES.map((example) => (
+              <button
+                key={example}
+                type="button"
+                className="example-chip"
+                onClick={() => void search.runSearch(example)}
+              >
+                {example}
+              </button>
+            ))}
+          </section>
+        )}
+      </div>
 
       {rateLimited && (
         <StatusBanner kind="error">
@@ -117,10 +135,18 @@ function App() {
           {search.viewState === 'submitting' && <StatusBanner kind="info">Searching…</StatusBanner>}
           {search.viewState === 'running' && !search.error && (
             <StatusBanner kind="info">
-              Searching{search.results.length > 0
+              Searching
+              {search.results.length > 0
                 ? ` — ${search.total} result${search.total === 1 ? '' : 's'} so far`
                 : '…'}
             </StatusBanner>
+          )}
+          {search.viewState === 'running' && search.results.length === 0 && (
+            <div className="results" aria-hidden="true">
+              <ResultSkeleton />
+              <ResultSkeleton />
+              <ResultSkeleton />
+            </div>
           )}
 
           {showResultsArea && (
@@ -136,13 +162,17 @@ function App() {
               <FilterBar filters={search.filters} onChange={search.setFilters} />
 
               {search.results.length === 0 ? (
-                <p className="status-text">
-                  {search.page > 1
-                    ? 'No results on this page.'
-                    : filtersActive
-                      ? 'No results match these filters. Try widening the time window or selecting more source types.'
-                      : 'No results found.'}
-                </p>
+                search.page > 1 ? (
+                  <EmptyState message="No results on this page." />
+                ) : filtersActive ? (
+                  <EmptyState
+                    message="No results match these filters. Try widening the time window or selecting more source types."
+                    actionLabel="Reset filters"
+                    onAction={() => search.setFilters(DEFAULT_FILTERS)}
+                  />
+                ) : (
+                  <EmptyState message="No results found." />
+                )
               ) : (
                 <>
                   <p className="result-count">

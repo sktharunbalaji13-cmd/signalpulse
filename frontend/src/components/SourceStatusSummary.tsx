@@ -9,9 +9,8 @@ function describeSource(source: SourceStatus): string {
     case 'success': {
       const count = source.result_count ?? 0
       const label = `${count} ${count === 1 ? 'result' : 'results'}`
-      return source.latency_ms != null
-        ? `${source.name} ✓ ${label} · ${source.latency_ms} ms`
-        : `${source.name} ✓ ${label}`
+      const latency = source.latency_ms != null ? ` · ${source.latency_ms} ms` : ''
+      return `${source.name} · ${label}${latency}`
     }
     case 'timeout':
       return `${source.name} timed out`
@@ -28,16 +27,17 @@ export function SourceStatusSummary({ sources }: SourceStatusSummaryProps) {
   }
   return (
     <ul className="source-summary" aria-label="Source status">
-      {sources.map((source) => (
-        <li
-          key={source.name}
-          className={`source-summary__item ${
-            source.status === 'success' ? 'source-summary__item--ok' : 'source-summary__item--error'
-          }`}
-        >
-          {describeSource(source)}
-        </li>
-      ))}
+      {sources.map((source) => {
+        const ok = source.status === 'success'
+        return (
+          <li
+            key={source.name}
+            className={`source-summary__item ${ok ? 'source-summary__item--ok' : 'source-summary__item--error'}`}
+          >
+            <span>{ok ? '✓ ' : '⚠ '}{describeSource(source)}</span>
+          </li>
+        )
+      })}
     </ul>
   )
 }

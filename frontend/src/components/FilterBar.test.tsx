@@ -65,4 +65,23 @@ describe('FilterBar', () => {
     expect(screen.getByLabelText('Time')).toBeDisabled()
     expect(screen.getByLabelText('Language')).toBeDisabled()
   })
+
+  it('offers a clear action when filters are active', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderBar({ time: '7d', sourceTypes: ['news'] })
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(onChange).toHaveBeenCalledWith({
+      sourceTypes: [],
+      time: 'all',
+      duplicates: 'all',
+      language: '',
+    })
+  })
+
+  it('hides the clear action when no filters are active', () => {
+    renderBar()
+    expect(
+      screen.queryByRole('button', { name: 'Clear filters' }),
+    ).not.toBeInTheDocument()
+  })
 })

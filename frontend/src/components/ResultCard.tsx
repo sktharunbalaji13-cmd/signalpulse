@@ -13,7 +13,7 @@ export function ResultCard({ result, rank }: ResultCardProps) {
       <div className="result-card__meta">
         {rank !== undefined && <span className="result-card__rank">#{rank}</span>}
         <SourceChip sourceType={result.source_type} />
-        <span>{result.source_name}</span>
+        <span className="result-card__source">{result.source_name}</span>
         {result.is_duplicate && <span className="chip chip--duplicate">duplicate</span>}
       </div>
       <h3>
@@ -22,7 +22,9 @@ export function ResultCard({ result, rank }: ResultCardProps) {
         </a>
       </h3>
       {result.author && <p className="result-card__byline">By {result.author}</p>}
-      {result.description && <p>{result.description}</p>}
+      {result.description && (
+        <p className="result-card__description">{result.description}</p>
+      )}
       <p className="result-card__times">
         Published: {formatTimestamp(result.published_at)} · Retrieved:{' '}
         {formatTimestamp(result.retrieved_at)}

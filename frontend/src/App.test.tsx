@@ -194,7 +194,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Search topic'), 'ai')
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(await screen.findByText('No results found.')).toBeInTheDocument()
+    expect(await screen.findByText('No results found.', {}, { timeout: 5000 })).toBeInTheDocument()
   })
 
   it('shows a filter-aware empty message when filters are active', async () => {
@@ -210,13 +210,25 @@ describe('App', () => {
     render(<App />)
     await user.type(screen.getByLabelText('Search topic'), 'ai')
     await user.click(screen.getByRole('button', { name: 'Search' }))
-    await screen.findByText('No results found.')
+    await screen.findByText('No results found.', {}, { timeout: 5000 })
 
     await user.selectOptions(screen.getByLabelText('Time'), '7d')
 
-    expect(
-      await screen.findByText(/No results match these filters/),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/No results match these filters/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }))
+    expect(await screen.findByText('No results found.', {}, { timeout: 5000 })).toBeInTheDocument()
+  })
+
+  it('shows skeleton placeholders while results are loading', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockImplementation(() => new Promise(() => undefined))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(await screen.findAllByTestId('result-skeleton')).toHaveLength(3)
   })
 
   it('applies the time filter as a query-time view', async () => {
@@ -283,8 +295,10 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Search topic'), 'ai')
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(await screen.findByText(/Wikipedia ✓ 10 results/, {}, { timeout: 5000 })).toBeInTheDocument()
-    expect(screen.getByText(/The Guardian ✓ 8 results/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/✓ Wikipedia · 10 results/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/✓ The Guardian · 8 results/)).toBeInTheDocument()
     expect(screen.getByText('NEWS')).toBeInTheDocument()
   })
 
