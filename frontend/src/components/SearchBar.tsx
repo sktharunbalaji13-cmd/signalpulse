@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react'
 
 type SearchBarProps = {
   disabled: boolean
+  /** Submit-button label; defaults to Searching…/Search based on `disabled`. */
+  label?: string
   onSearch: (query: string) => void
 }
 
-export function SearchBar({ disabled, onSearch }: SearchBarProps) {
+export function SearchBar({ disabled, label, onSearch }: SearchBarProps) {
   const [value, setValue] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -19,6 +21,8 @@ export function SearchBar({ disabled, onSearch }: SearchBarProps) {
     setValidationError(null)
     onSearch(query)
   }
+
+  const buttonLabel = label ?? (disabled ? 'Searching…' : 'Search')
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -34,7 +38,7 @@ export function SearchBar({ disabled, onSearch }: SearchBarProps) {
           aria-describedby={validationError ? 'search-error' : undefined}
         />
         <button type="submit" disabled={disabled}>
-          {disabled ? 'Searching…' : 'Search'}
+          {buttonLabel}
         </button>
       </div>
       {validationError && (

@@ -5,10 +5,21 @@ type SourceStatusSummaryProps = {
 }
 
 function describeSource(source: SourceStatus): string {
-  if (source.status === 'success') {
-    return `${source.name} ✓ ${source.result_count} ${source.result_count === 1 ? 'result' : 'results'}`
+  switch (source.status) {
+    case 'success': {
+      const count = source.result_count ?? 0
+      const label = `${count} ${count === 1 ? 'result' : 'results'}`
+      return source.latency_ms != null
+        ? `${source.name} ✓ ${label} · ${source.latency_ms} ms`
+        : `${source.name} ✓ ${label}`
+    }
+    case 'timeout':
+      return `${source.name} timed out`
+    case 'rate_limited':
+      return `${source.name} rate limited`
+    default:
+      return `${source.name} unavailable`
   }
-  return `${source.name} unavailable`
 }
 
 export function SourceStatusSummary({ sources }: SourceStatusSummaryProps) {

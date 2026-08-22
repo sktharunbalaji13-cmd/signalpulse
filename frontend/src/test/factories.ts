@@ -1,4 +1,7 @@
-import type { SearchResultItem, SearchStatusResponse } from '../api/client'
+import type {
+  SearchResultItem,
+  SearchStatusResponse,
+} from '../api/client'
 
 export function makeResult(overrides: Partial<SearchResultItem> = {}): SearchResultItem {
   return {
@@ -11,6 +14,8 @@ export function makeResult(overrides: Partial<SearchResultItem> = {}): SearchRes
     published_at: null,
     retrieved_at: '2026-08-19T12:00:00Z',
     language: 'en',
+    is_duplicate: false,
+    duplicate_group_id: null,
     ...overrides,
   }
 }
