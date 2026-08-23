@@ -105,10 +105,8 @@ body::before {
   font-size: 0.85rem;
   letter-spacing: 0.22em;
   color: var(--ink);
-  /* M-pulse: hollow letters whose borders pulse around each glyph. */
-  -webkit-text-stroke: 1px var(--accent);
-  -webkit-text-fill-color: transparent;
-  animation: outline-pulse 2.4s ease-in-out infinite;
+  /* Brand halo: a calm, breathing accent glow on the name. */
+  animation: glow-breathe 4.3s ease-in-out infinite;
 }
 
 .topbar__brand::before {
@@ -180,14 +178,18 @@ body::before {
   }
 }
 
-/* M-pulse: the brand letters breathe — their border dims and brightens. */
-@keyframes outline-pulse {
+/* Brand halo: the name breathes a soft accent glow — calm, sub-1 Hz. */
+@keyframes glow-breathe {
   0%,
   100% {
-    -webkit-text-stroke-color: var(--accent);
+    text-shadow:
+      0 0 4px rgba(91, 156, 255, 0.35),
+      0 0 10px rgba(91, 156, 255, 0.25);
   }
   50% {
-    -webkit-text-stroke-color: var(--accent-strong);
+    text-shadow:
+      0 0 5px rgba(130, 180, 255, 0.5),
+      0 0 14px rgba(130, 180, 255, 0.35);
   }
 }
 
@@ -1148,10 +1150,8 @@ summary:focus-visible {
   font-weight: 700;
   letter-spacing: 0.22em;
   color: var(--ink);
-  /* M-pulse: matches the topbar brand treatment. */
-  -webkit-text-stroke: 1px var(--accent);
-  -webkit-text-fill-color: transparent;
-  animation: outline-pulse 2.4s ease-in-out infinite;
+  /* Brand halo: matches the topbar treatment. */
+  animation: glow-breathe 4.3s ease-in-out infinite;
 }
 
 .footer__tagline {
