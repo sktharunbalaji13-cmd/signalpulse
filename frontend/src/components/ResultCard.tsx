@@ -9,26 +9,30 @@ type ResultCardProps = {
 
 export function ResultCard({ result, rank }: ResultCardProps) {
   return (
-    <article className="result-card">
-      <div className="result-card__meta">
-        {rank !== undefined && <span className="result-card__rank">#{rank}</span>}
-        <SourceChip sourceType={result.source_type} />
-        <span className="result-card__source">{result.source_name}</span>
-        {result.is_duplicate && <span className="chip chip--duplicate">duplicate</span>}
+    <article className="signal">
+      <div className="signal__rank" aria-label={`Signal rank ${rank ?? ''}`}>
+        #{rank !== undefined ? String(rank).padStart(2, '0') : ''}
       </div>
-      <h3>
-        <a href={result.url} target="_blank" rel="noopener noreferrer">
-          {result.title}
-        </a>
-      </h3>
-      {result.author && <p className="result-card__byline">By {result.author}</p>}
-      {result.description && (
-        <p className="result-card__description">{result.description}</p>
-      )}
-      <p className="result-card__times">
-        Published: {formatTimestamp(result.published_at)} · Retrieved:{' '}
-        {formatTimestamp(result.retrieved_at)}
-      </p>
+      <div className="signal__body">
+        <div className="signal__tags">
+          <SourceChip sourceType={result.source_type} />
+          <span>{result.source_name}</span>
+          {result.is_duplicate && <span className="chip chip--duplicate">duplicate</span>}
+        </div>
+        <h3>
+          <a href={result.url} target="_blank" rel="noopener noreferrer">
+            {result.title}
+          </a>
+        </h3>
+        {result.author && <p className="signal__byline">By {result.author}</p>}
+        {result.description && (
+          <p className="signal__description">{result.description}</p>
+        )}
+        <p className="signal__times">
+          Published: {formatTimestamp(result.published_at)} · Retrieved:{' '}
+          {formatTimestamp(result.retrieved_at)}
+        </p>
+      </div>
     </article>
   )
 }

@@ -63,11 +63,11 @@ beforeEach(() => {
  *  terminal-sensitive tests must wait for the fetched-result count instead.
  *  Two 700 ms poll ticks exceed RTL's default 1 s timeout, hence 5 s. */
 function waitForTerminalResults(total: number) {
-  if (total === 0) {
-    return screen.findByText('No results found.', {}, { timeout: 5000 })
+    if (total === 0) {
+      return screen.findByText('No results found.', {}, { timeout: 5000 })
+    }
+    return screen.findByText(new RegExp(`^${total} SIGNALS$`), {}, { timeout: 5000 })
   }
-  return screen.findByText(new RegExp(`^${total} result`), {}, { timeout: 5000 })
-}
 
 describe('App', () => {
   it('renders the search input and example queries', () => {
@@ -112,7 +112,7 @@ describe('App', () => {
       's1',
       expect.objectContaining({ page: 1 }),
     )
-    expect(screen.getByText('#1')).toBeInTheDocument()
+    expect(screen.getByText('#01')).toBeInTheDocument()
     expect(screen.getByText(/Results for:/)).toBeInTheDocument()
   })
 
@@ -153,7 +153,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
     expect(
-      await screen.findByText(/^Searching/, { selector: 'p.status-banner' }),
+      await screen.findByText(/^Searching/, { selector: '.notice p' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Searching|Search/ })).toBeDisabled()
   })
@@ -166,7 +166,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Search topic'), 'ai')
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(await screen.findByText(/Search failed\./)).toBeInTheDocument()
+    expect(await screen.findByText(/Every source was unavailable/)).toBeInTheDocument()
   })
 
   it('surfaces a 429 rate-limit response distinctly and disables re-submit', async () => {
@@ -248,6 +248,9 @@ describe('App', () => {
         expect.objectContaining({ time: '24h', page: 1 }),
       ),
     )
+    expect(
+      screen.getByRole('button', { name: 'Remove time filter 24h' }),
+    ).toBeInTheDocument()
   })
 
   it('paginates through results', async () => {
@@ -296,9 +299,12 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
     expect(
-      await screen.findByText(/✓ Wikipedia · 10 results/, {}, { timeout: 5000 }),
+      await screen.findByText(/✓ Wikipedia/, {}, { timeout: 5000 }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/✓ The Guardian · 8 results/)).toBeInTheDocument()
+    expect(screen.getByText('10 results')).toBeInTheDocument()
+    expect(screen.getByText('320 ms')).toBeInTheDocument()
+    expect(screen.getByText(/✓ The Guardian/)).toBeInTheDocument()
+    expect(screen.getByText('8 results')).toBeInTheDocument()
     expect(screen.getByText('NEWS')).toBeInTheDocument()
   })
 
@@ -331,8 +337,8 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Search topic'), 'ai')
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(await screen.findByText(/Reddit unavailable/)).toBeInTheDocument()
-    expect(await screen.findByText(/Some sources were unavailable/)).toBeInTheDocument()
+    expect(await screen.findByText(/⚠ Reddit/)).toBeInTheDocument()
+    expect(await screen.findByText(/Partial Source Coverage/i)).toBeInTheDocument()
     expect(screen.getByText('Artificial intelligence')).toBeInTheDocument()
   })
 
