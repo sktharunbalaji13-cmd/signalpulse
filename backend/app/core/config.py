@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,6 +7,19 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "development"
     log_level: str = "INFO"
+
+    # M15.1 data retention (ADR 0013): searches (and their dependent rows) older
+    # than this many days are deleted automatically and via the admin purge
+    # endpoint. The retention clock is searches.created_at. Must be >= 1 so a
+    # zero/negative value can never be interpreted as "delete everything".
+    retention_days: int = 30
+
+    @field_validator("retention_days")
+    @classmethod
+    def _retention_days_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("RETENTION_DAYS must be a positive integer (>= 1)")
+        return value
 
     # M3.5 pipeline-level per-source timeout (design §15.3.1): bounds a single
     # source unit (fetch + persist) with asyncio.wait_for so a hung adapter can

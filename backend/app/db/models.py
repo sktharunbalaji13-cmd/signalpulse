@@ -44,6 +44,8 @@ class SourceEventStatus(StrEnum):
 
 class Search(Base):
     __tablename__ = "searches"
+    # M15.1: retention cleanup scans by created_at, so it needs an index.
+    __table_args__ = (Index("ix_searches_created_at", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     query: Mapped[str] = mapped_column(String(200))

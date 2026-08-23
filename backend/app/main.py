@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 from contextlib import asynccontextmanager
 from time import perf_counter
@@ -15,12 +16,26 @@ from app.core.config import settings
 from app.core.logging import log_event
 from app.db.models import Base
 from app.db.session import engine, get_session
+from app.schemas.search import AdminPurgeResponse
+from app.services.retention import (
+    purge_expired,
+    purge_search,
+    retention_cutoff,
+    run_scheduled_cleanup,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    # M15.1: enforce retention in the background so startup and health checks
+    # are never delayed by database work. Render free tier has no scheduler;
+    # this runs once per process start (deploy/cold start), so retention is
+    # eventually consistent between restarts. Failures inside the job are
+    # isolated there and only logged as operational metrics.
+    cleanup_task = asyncio.create_task(asyncio.to_thread(run_scheduled_cleanup))
     yield
+    cleanup_task.cancel()
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -85,6 +100,46 @@ def create_app() -> FastAPI:
         methods=["GET"],
         tags=["admin"],
         name="admin_stats",
+    )
+
+    def admin_purge_search_endpoint(
+        search_id: str,
+        request: Request,
+        session: Session = Depends(get_session),  # noqa: B008
+    ) -> AdminPurgeResponse:
+        """M15.1: purge one search and its dependent rows (admin-only)."""
+        _verify_admin_key(request)
+        counts = purge_search(session, search_id)
+        if counts is None:
+            raise HTTPException(status_code=404, detail="Search not found")
+        return AdminPurgeResponse(**counts.as_dict())
+
+    def admin_purge_expired_endpoint(
+        request: Request,
+        session: Session = Depends(get_session),  # noqa: B008
+    ) -> AdminPurgeResponse:
+        """M15.1: purge every search older than the retention cutoff."""
+        _verify_admin_key(request)
+        cutoff = retention_cutoff()
+        try:
+            counts = purge_expired(session, cutoff=cutoff)
+        except Exception:
+            raise HTTPException(status_code=500) from None
+        return AdminPurgeResponse(cutoff_utc=cutoff, **counts.as_dict())
+
+    app.add_api_route(
+        "/api/v1/admin/searches/{search_id}",
+        admin_purge_search_endpoint,
+        methods=["DELETE"],
+        tags=["admin"],
+        name="admin_purge_search",
+    )
+    app.add_api_route(
+        "/api/v1/admin/purge-expired",
+        admin_purge_expired_endpoint,
+        methods=["POST"],
+        tags=["admin"],
+        name="admin_purge_expired",
     )
 
     return app

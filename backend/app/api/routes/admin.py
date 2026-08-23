@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models import DuplicateGroup, Result, Search, SourceEvent
 
 _VALID_WINDOWS = {"24h": 1, "7d": 7, "30d": 30}
@@ -116,6 +117,12 @@ def get_admin_stats(session: Session, window: str) -> dict[str, Any]:
     return {
         "window": window,
         "generated_at": datetime.now(UTC).isoformat(),
+        "retention": {
+            "days": settings.retention_days,
+            "clock": "searches.created_at",
+            "note": "M15.1: searches older than this are deleted automatically "
+            "(on startup/cold start) and via POST /api/v1/admin/purge-expired",
+        },
         "searches": {"total": total, "by_status": dict(sorted(by_status.items()))},
         "latency_ms": {
             "p50": pctl(50),

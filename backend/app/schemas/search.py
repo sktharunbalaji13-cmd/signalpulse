@@ -83,3 +83,13 @@ class SearchHistoryItem(BaseModel):
 
 class SearchHistoryResponse(BaseModel):
     items: list[SearchHistoryItem]
+
+
+class AdminPurgeResponse(BaseModel):
+    """M15.1 admin purge outcome: operational counts only, never content."""
+
+    searches_deleted: int
+    results_deleted: int
+    source_events_deleted: int
+    duplicate_groups_deleted: int
+    cutoff_utc: datetime | None = None
