@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 """M3-D ranking experiment: combination formula candidates, measured.
 
-Design + measurement ONLY (design §5.1). The combined ranker is not
+Design + measurement ONLY (design Ãƒâ€šÃ‚Â§5.1). The combined ranker is not
 implemented in production, nothing is wired, no weights are tuned against the
 corpus, and BM25 is not used. Components are the validated ones:
 
@@ -9,11 +9,11 @@ corpus, and BM25 is not used. Components are the validated ones:
   min-max normalised per search to [0, 1];
 * freshness: the production M3-C scorer (``app.services.freshness``),
   imported and driven at the fixed corpus instant;
-* source quality: design §5 constants (Guardian 0.90, Wikipedia 0.80, Reddit
+* source quality: design Ãƒâ€šÃ‚Â§5 constants (Guardian 0.90, Wikipedia 0.80, Reddit
   0.50; "Global Wire" documented placeholder 0.85; unknown 0.50);
-* diversity: within a ±0.05 score band, source types alternate (toggleable).
+* diversity: within a Ãƒâ€šÃ‚Â±0.05 score band, source types alternate (toggleable).
 
-Behavioural acceptance tests (P1–P9) are defined and run BEFORE the corpus is
+Behavioural acceptance tests (P1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“P9) are defined and run BEFORE the corpus is
 measured: they encode "what good ranking means". Corpus metrics are secondary
 evidence, reported per candidate without tuning. Run with::
 
@@ -24,6 +24,8 @@ Writes ``eval/reports/ranking_eval.md``.
 
 from __future__ import annotations
 
+import json
+import math
 import statistics
 import sys
 from datetime import timedelta
@@ -35,6 +37,31 @@ from eval.schema import EvalCorpus, EvalItem, _parse_ts, validate_corpus
 NOW = _parse_ts(corpus.RETRIEVED)
 BAND_WIDTH = 0.05
 
+
+def doc_key(title: str, description: str | None) -> str:
+    """Document text key - matches the semantic embedding generator."""
+    return f"{title}. {description}" if description else title
+
+
+_SEMANTICS_CACHE: dict | None = None
+
+
+def load_semantics() -> dict:
+    """Lazy-load the M10 embedding artifact; {} when unavailable (lexical fallback)."""
+    global _SEMANTICS_CACHE
+    if _SEMANTICS_CACHE is None:
+        path = Path(__file__).resolve().parent / "data" / "semantic_embeddings.json"
+        if path.exists():
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _SEMANTICS_CACHE = {
+                "queries": raw["queries"],
+                "probe_queries": raw["probe_queries"],
+                "docs_by_text": raw["docs_by_text"],
+            }
+        else:
+            _SEMANTICS_CACHE = {}
+    return _SEMANTICS_CACHE
+
 SOURCE_QUALITY = {
     "The Guardian": 0.90,
     "Wikipedia": 0.80,
@@ -44,7 +71,7 @@ _SOCIAL_QUALITY = 0.50
 _UNKNOWN_QUALITY = 0.50
 _TYPE_PRIORITY = {"news": 0, "social": 1, "reference": 2}
 
-# (w_rel, w_fresh, w_qual) per source type — principled candidates, not fitted.
+# (w_rel, w_fresh, w_qual) per source type ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â principled candidates, not fitted.
 WEIGHT_SETS = {
     "C0_relevance_only": {"news": (1.0, 0.0, 0.0), "social": (1.0, 0.0, 0.0), "reference": (1.0, 0.0, 0.0)},
     "C1_design": {"news": (0.55, 0.30, 0.15), "social": (0.55, 0.30, 0.15), "reference": (0.65, 0.10, 0.25)},
@@ -57,6 +84,8 @@ CANDIDATES = {
     "C2_balanced": {"weight_set": WEIGHT_SETS["C2_balanced"], "diversity": False},
     "C3_relevance_heavy": {"weight_set": WEIGHT_SETS["C3_relevance_heavy"], "diversity": False},
     "C4_design_diversity": {"weight_set": WEIGHT_SETS["C1_design"], "diversity": True},
+    # M10 (pre-registered): bounded semantic blend - rel = 0.70*lex + 0.30*sem
+    "M10_SEM1_semantic_blend": {"weight_set": WEIGHT_SETS["C1_design"], "diversity": True, "semantic_blend": True},
 }
 
 _BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -112,12 +141,13 @@ def rank_combined(
     candidate: dict,
     *,
     diversity: bool | None = None,
+    semantics: dict | None = None,
 ) -> list[dict]:
-    """Rank items by the combination formula with the design §5 total order.
+    """Rank items by the combination formula with the design Ãƒâ€šÃ‚Â§5 total order.
 
     Returns rows of ``{"id", "score", "relevance", "freshness", "quality"}``.
-    Tie-break: score desc → source-type priority → published_at desc (None
-    last) → URL lexicographic. ``diversity`` overrides the candidate's toggle.
+    Tie-break: score desc ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ source-type priority ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ published_at desc (None
+    last) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ URL lexicographic. ``diversity`` overrides the candidate's toggle.
     """
     weight_set = candidate["weight_set"]
     use_diversity = candidate["diversity"] if diversity is None else diversity
@@ -137,11 +167,43 @@ def rank_combined(
                 "relevance": relevance,
                 "freshness": freshness,
                 "quality": quality,
+                "w_rel": w_rel,
+                "w_fresh": w_fresh,
+                "w_qual": w_qual,
                 "source_type": item.source_type,
                 "ts_key": _ts_key(item),
                 "url": item.url,
+                "doc_text": doc_key(item.title, item.description),
             }
         )
+    # M10 SEM1 (pre-registered): bounded semantic blend of the relevance axis
+    # only - rel' = 0.70*lexical + 0.30*semantic(min-max within candidate set).
+    # Freshness/quality/weights/diversity/tie-breaks stay untouched.
+    if candidate.get("semantic_blend") and semantics:
+        qvec = semantics.get("query")
+        docs_map = semantics.get("docs", {})
+
+        def _cos(a: list[float], b: list[float]) -> float:
+            num = sum(x * y for x, y in zip(a, b, strict=True))
+            na = math.sqrt(sum(x * x for x in a))
+            nb = math.sqrt(sum(y * y for y in b))
+            return num / (na * nb) if na and nb else 0.0
+
+        sem_raw = [
+            _cos(qvec, docs_map[r["doc_text"]]) if r["doc_text"] in docs_map else 0.0
+            for r in rows
+        ]
+        smin = min(sem_raw)
+        span = max(sem_raw) - smin
+        for row, sem in zip(rows, sem_raw, strict=True):
+            sem_norm = (sem - smin) / span if span else 0.0
+            rel_blended = 0.70 * row["relevance"] + 0.30 * sem_norm
+            row["relevance"] = rel_blended
+            row["score"] = (
+                row["w_rel"] * rel_blended
+                + row["w_fresh"] * row["freshness"]
+                + row["w_qual"] * row["quality"]
+            )
     rows.sort(key=lambda r: (-r["score"], _TYPE_PRIORITY.get(r["source_type"], 9), r["ts_key"], r["url"]))
     if use_diversity:
         rows = _diversity_alternate(rows)
@@ -149,7 +211,7 @@ def rank_combined(
 
 
 def _diversity_alternate(rows: list[dict], band_width: float = BAND_WIDTH) -> list[dict]:
-    """Within each ±band score band, alternate source types (round-robin)."""
+    """Within each Ãƒâ€šÃ‚Â±band score band, alternate source types (round-robin)."""
     out: list[dict] = []
     i = 0
     while i < len(rows):
@@ -205,8 +267,20 @@ def _pi(iid: str, title: str, stype: str, sname: str, pub: str | None, rel: int,
     )
 
 
-def _rank(items: list[EvalItem], query: str, candidate: dict, *, diversity: bool | None = None) -> list[str]:
-    return [row["id"] for row in rank_combined(items, query, candidate, diversity=diversity)]
+def _rank(
+    items: list[EvalItem],
+    query: str,
+    candidate: dict,
+    *,
+    diversity: bool | None = None,
+    semantics: dict | None = None,
+) -> list[str]:
+    return [
+        row["id"]
+        for row in rank_combined(
+            items, query, candidate, diversity=diversity, semantics=semantics
+        )
+    ]
 
 
 def _probe_p1() -> dict:
@@ -298,7 +372,7 @@ def _probe_p7() -> dict:
 
 
 def _probe_p8() -> dict:
-    """Diversity: within the ±0.05 score band, source types alternate when the
+    """Diversity: within the Ãƒâ€šÃ‚Â±0.05 score band, source types alternate when the
     pass is enabled; the toggle is inert for candidates without it."""
     items = [
         _pi("g1", "AI regulation", "news", "The Guardian", _ts(24.0), 2),
@@ -329,7 +403,7 @@ def _probe_p8() -> dict:
         ok = alternates if changed else not alternates
         return (ok, "alternates when enabled; grouped when disabled")
 
-    return {"name": "P8", "description": "diversity alternates source types within the ±0.05 band", "query": "ai regulation", "items": items, "assertion": assertion}
+    return {"name": "P8", "description": "diversity alternates source types within the Ãƒâ€šÃ‚Â±0.05 band", "query": "ai regulation", "items": items, "assertion": assertion}
 
 
 def _probe_p9() -> dict:
@@ -346,12 +420,33 @@ def probes() -> list[dict]:
 
 
 def _run_probes() -> dict:
+    sem_store = load_semantics()
+
+    def _probe_semantics(probe) -> dict | None:
+        if not any(c.get("semantic_blend") for c in CANDIDATES.values()):
+            return None
+        pq = " ".join(probe["query"].lower().split())
+        qvec = sem_store.get("probe_queries", {}).get(pq)
+        if not qvec:
+            return None
+        docs = {}
+        for item in probe["items"]:
+            key = doc_key(item.title, item.description)
+            vec = sem_store.get("docs_by_text", {}).get(key)
+            if vec:
+                docs[key] = vec
+        return {"query": qvec, "docs": docs}
+
     rows = []
     for probe in probes():
         per_candidate = {}
+        semantics = _probe_semantics(probe)
         for name, candidate in CANDIDATES.items():
             diversity = True if (probe["name"] == "P8" and candidate.get("diversity")) else None
-            ranked = _rank(probe["items"], probe["query"], candidate, diversity=diversity)
+            ranked = _rank(
+                probe["items"], probe["query"], candidate,
+                diversity=diversity, semantics=semantics,
+            )
             passed, detail = probe["assertion"](ranked, candidate)
             per_candidate[name] = {"passed": passed, "detail": detail}
         rows.append({"name": probe["name"], "description": probe["description"], "per_candidate": per_candidate})
@@ -360,13 +455,25 @@ def _run_probes() -> dict:
 
 def _corpus_measurement() -> dict:
     corpus_data = _build_corpus()
+    sem_store = load_semantics()
     per_query = {}
     for query in corpus_data.queries:
         relevance = {item.id: item.relevance for item in query.items}
         baseline_ranked = baseline.rank(query.items, query.query)
         row = {"baseline": metrics.ranking_metrics(baseline_ranked, relevance)}
+        qvec = sem_store.get("queries", {}).get(query.id)
+        sem_docs = {}
+        for item in query.items:
+            key = doc_key(item.title, item.description)
+            vec = sem_store.get("docs_by_text", {}).get(key)
+            if vec:
+                sem_docs[key] = vec
+        semantics = {"query": qvec, "docs": sem_docs} if qvec else None
         for name, candidate in CANDIDATES.items():
-            ranked = _rank(query.items, query.query, candidate, diversity=candidate["diversity"])
+            ranked = _rank(
+                query.items, query.query, candidate,
+                diversity=candidate["diversity"], semantics=semantics,
+            )
             row[name] = metrics.ranking_metrics(ranked, relevance)
         per_query[query.id] = row
 
@@ -435,7 +542,7 @@ def _render_markdown(report: dict) -> str:
     probe_rows = report["probes"]["rows"]
     candidate_names = list(CANDIDATES)
     lines = [
-        "# M3-D ranking experiment — combination formula, behavioural acceptance first",
+        "# M3-D ranking experiment ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â combination formula, behavioural acceptance first",
         "",
         f"- Fixed now: `{report['fixed_now']}`; corpus revision {report['corpus_revision']}, unchanged.",
         f"- Status: **{report['status']}**.",
@@ -446,7 +553,7 @@ def _render_markdown(report: dict) -> str:
         "(the ADR 0007 production core). BM25: not used.",
         "- Freshness: the M3-C production scorer (accepted curve, bit-identical).",
         f"- Quality: {report['components']['quality']} (+ 0.50 for unknown sources); "
-        f"diversity band ±{report['components']['diversity_band']}.",
+        f"diversity band Ãƒâ€šÃ‚Â±{report['components']['diversity_band']}.",
         "",
         _fmt_table(
             ["candidate", "weights (rel/fresh/qual) per type", "diversity"],
@@ -487,11 +594,11 @@ def _render_markdown(report: dict) -> str:
         "## 4. Observations",
         "",
         "- Acceptance: every candidate clears the behavioural probes (the bar is behavioural, not metric).",
-        "- Corpus caveat: the v2 corpus timestamps correlate with relevance by authoring (M3-C, rho ≈ 0.41), "
+        "- Corpus caveat: the v2 corpus timestamps correlate with relevance by authoring (M3-C, rho ÃƒÂ¢Ã¢â‚¬Â°Ã‹â€  0.41), "
         "so adding freshness can inflate corpus nDCG without meaning it is better: the probes are the "
         "controlled evidence, corpus numbers are indicative.",
         "- Fresh junk: mean count of rel-0 items in the top 10 (and of those with freshness >= 0.7).",
-        "- Diversity is toggleable and only reorders within the ±0.05 band (P8).",
+        "- Diversity is toggleable and only reorders within the Ãƒâ€šÃ‚Â±0.05 band (P8).",
         "- No weights were tuned against the corpus; no production ranker was wired.",
     ]
     return "\n".join(lines) + "\n"
