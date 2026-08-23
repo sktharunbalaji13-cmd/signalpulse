@@ -26,6 +26,7 @@ import numpy as np
 from app.core.config import settings
 
 _MODEL_DIR = Path(__file__).resolve().parents[2] / "models" / "minilm-int8"
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 _lock = threading.Lock()
 _session = None
@@ -53,7 +54,7 @@ def _load() -> tuple:
 
             model_path = Path(settings.semantic_model_dir)
             if not model_path.is_absolute():
-                model_path = _MODEL_DIR
+                model_path = _BACKEND_ROOT / settings.semantic_model_dir
             onnx_path = model_path / "model_quantized.onnx"
             tok_path = model_path / "tokenizer.json"
             if not onnx_path.exists() or not tok_path.exists():
