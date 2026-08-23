@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     gdelt_timeout_seconds: float = 30.0
     gdelt_max_results: int = 10
 
+    # M17.5.1 Hacker News adapter (ADR 0014): keyless public Algolia HN Search.
+    hacker_news_api_url: str = "https://hn.algolia.com/api/v1/search"
+    hacker_news_timeout_seconds: float = 5.0
+    hacker_news_max_results: int = 10
+    hacker_news_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

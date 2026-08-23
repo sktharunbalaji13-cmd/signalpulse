@@ -1,0 +1,32 @@
+{
+  "hits": [
+    {
+      "objectID": "48387270",
+      "title": "Artificial intelligence is not conscious",
+      "url": "https://www.theatlantic.com/philosophy/2026/06/example/687378/",
+      "author": "lordleft",
+      "points": 800,
+      "num_comments": 1382,
+      "created_at": "2026-06-03T17:51:37Z",
+      "created_at_i": 1780509097,
+      "story_text": null,
+      "_tags": ["story"]
+    },
+    {
+      "objectID": "41967900",
+      "title": "Show HN: SignalPulse intelligence workspace",
+      "url": null,
+      "author": null,
+      "points": 42,
+      "num_comments": 7,
+      "created_at": "2026-08-20T10:00:00Z",
+      "created_at_i": 1785000000,
+      "story_text": "A long-form announcement body that keeps going well past the five hundred character truncation boundary. It rambles deliberately across multiple sentences, adding clause after clause, so that the adapter under test must clip this text down to the canonical description limit exactly the way every other source adapter in SignalPulse clips long external API text today. Padding continues here with additional filler content designed purely to exceed the limit: more words, more phrases, and still more sentences follow until the boundary is comfortably crossed and truncation becomes observable in tests.",
+      "_tags": ["story", "show_hn"]
+    }
+  ],
+  "nbHits": 2,
+  "page": 0,
+  "nbPages": 1,
+  "hitsPerPage": 2
+}

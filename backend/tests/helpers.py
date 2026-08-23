@@ -12,6 +12,7 @@ GUARDIAN_API_URL = "https://content.guardianapis.com/search"
 REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 REDDIT_SEARCH_URL = "https://oauth.reddit.com/search"
 GDELT_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+HACKER_NEWS_API_URL = "https://hn.algolia.com/api/v1/search"
 
 
 def load_fixture(name: str) -> dict:
@@ -126,3 +127,25 @@ def mock_gdelt_timeout() -> None:
 
 def mock_gdelt_rate_limited() -> None:
     respx.get(GDELT_API_URL).mock(return_value=httpx.Response(429, text="rate limited"))
+
+
+def mock_hacker_news_success() -> None:
+    respx.get(HACKER_NEWS_API_URL).mock(
+        return_value=httpx.Response(
+            200, json=load_fixture("hacker_news_search_success.json")
+        )
+    )
+
+
+def mock_hacker_news_empty() -> None:
+    respx.get(HACKER_NEWS_API_URL).mock(
+        return_value=httpx.Response(200, json={"hits": [], "nbHits": 0})
+    )
+
+
+def mock_hacker_news_timeout() -> None:
+    respx.get(HACKER_NEWS_API_URL).mock(
+        side_effect=httpx.ConnectTimeout(
+            "timeout", request=httpx.Request("GET", HACKER_NEWS_API_URL)
+        )
+    )
