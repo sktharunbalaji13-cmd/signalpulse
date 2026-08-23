@@ -58,8 +58,12 @@ async def _run_source(search: Search, source_name: str) -> dict:
     started = monotonic()
     with db_session.SessionLocal() as session:
         try:
+            # M7.1: sources receive the normalized intake query (casing +
+            # whitespace collapsed); the original query remains on the Search
+            # row for display/history.
             results = await adapter.search(
-                search.query, SearchParams(window_hours=search.window_hours)
+                search.normalized_query or search.query,
+                SearchParams(window_hours=search.window_hours),
             )
             count = _persist_results(session, search.id, results)
             latency_ms = int((monotonic() - started) * 1000)
