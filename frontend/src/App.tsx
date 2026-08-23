@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import { EmptyState } from './components/EmptyState'
 import { FilterBar } from './components/FilterBar'
+import { Footer } from './components/Footer'
 import { Pagination } from './components/Pagination'
 import { ResultCard } from './components/ResultCard'
 import { ResultSkeleton } from './components/ResultSkeleton'
@@ -365,6 +366,8 @@ function App() {
           </aside>
         )}
       </main>
+
+      <Footer />
     </>
   )
 }

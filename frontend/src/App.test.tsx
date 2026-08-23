@@ -382,4 +382,18 @@ describe('App', () => {
     await new Promise((resolve) => setTimeout(resolve, 1600))
     expect(pollCalls()).toBe(callsAfterCompletion)
   })
+
+  it('renders the footer with contact links', () => {
+    render(<App />)
+    const emailLink = screen.getByRole('link', { name: /sktharunbalaji13@gmail.com/ })
+    expect(emailLink).toHaveAttribute('href', 'mailto:sktharunbalaji13@gmail.com')
+    expect(screen.getByRole('link', { name: /sktharunbalaji13-cmd/ })).toHaveAttribute(
+      'href',
+      'https://github.com/sktharunbalaji13-cmd',
+    )
+    expect(screen.getByRole('link', { name: /tharun balaji/i })).toHaveAttribute(
+      'href',
+      'https://www.linkedin.com/in/tharun-balaji-0ba196327/',
+    )
+  })
 })
