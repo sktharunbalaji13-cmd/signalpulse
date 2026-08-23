@@ -25,3 +25,8 @@ dist/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Local agent/skill tooling (not project code)
+.agents/
+.claude/
+skills-lock.json

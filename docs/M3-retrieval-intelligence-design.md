@@ -1,6 +1,7 @@
 # M3 — Retrieval Intelligence: Design
 
 **Status:** Approved baseline (2026-08-20). Authoritative M3 design; supersedes the prose in `PROJECT_SPEC.md` §17–§20 where they conflict (they do not — this document adds precision).
+**Implementation note (M16.1):** M3 shipped in full. Statements below that components are "not implemented yet" were true at design time and describe the pre-M3 baseline only — the freshness scorer, combined ranker, and filter layer are production today.
 **Scope:** M3-A (dedup), M3-B (relevance), M3-C (freshness), M3-D (ranking), M3-E (filters), plus the M3-A0 evaluation harness.
 **Contract:** Must not violate `PROJECT_SPEC.md` v0.3 §6A (public reliability & performance). Priority order is locked: Reliability → Speed → Source quality → Provenance → Intelligence → AI.
 

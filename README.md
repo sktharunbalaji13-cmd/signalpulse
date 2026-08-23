@@ -1,63 +1,140 @@
 # SignalPulse
 
-Real-time multi-source information intelligence — one pulse on any topic.
+**Real-time multi-source information intelligence — news, reference and social results, ranked and de-duplicated in one place.**
 
-**Current status:** M0 — Engineering Scaffold
+SignalPulse runs one query across independent sources in parallel, removes duplicates, ranks the surviving signals, and serves them through a small API and workspace UI. It is a working production system: deployed, monitored, authenticated, rate-limited, and governed by an explicit data-retention policy.
 
-## Technology stack
+## Why SignalPulse?
 
-- **Backend:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2, pydantic-settings, httpx, SQLAlchemy 2.0
-- **Frontend:** React, Vite, TypeScript
-- **Quality:** pytest, ruff, GitHub Actions CI
+Answering a question well usually means looking in more than one place. News coverage gives recency, encyclopedic sources give stable background, and social discussion gives raw public reaction — but each lives behind its own API with its own result shape, quality quirks, and duplicates. SignalPulse treats that aggregation problem as an engineering problem: canonicalize every source into one contract, merge honestly, rank deliberately, and prove every decision with measurements.
 
-## Local setup
+## Status at a glance
 
-Prerequisites: Python 3.11+ and Node.js 20+.
-
-### Backend
-
-```powershell
-cd backend
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-copy .env.example .env
-uvicorn app.main:app --reload
-```
-
-- API docs: http://127.0.0.1:8000/docs
-- Health: http://127.0.0.1:8000/api/v1/health
-
-### Frontend
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Open http://localhost:5173
-
-### Tests
-
-```powershell
-cd backend
-pytest
-```
-
-### Lint
-
-```powershell
-cd backend
-ruff check .
-```
-
-## Current limitations
-
-- No search functionality yet — M0 only establishes the runnable scaffold.
-- No external API integrations, no adapters, no ranking, no deduplication, no database tables, no deployment.
-- `.env.example` contains placeholders only; no real API keys exist in the repository.
+| Capability | State |
+|---|---|
+| Multi-source search (Wikipedia, The Guardian) | **PRODUCTION** |
+| Reddit source adapter | Implemented, credentials not configured in production |
+| C4 ranking model | **PRODUCTION** (nDCG@10 = 0.7850 on frozen corpus) |
+| Semantic relevance stage (SEM1) | **EXPERIMENTAL — disabled** (see below) |
+| Deduplication (annotate, never delete) | **PRODUCTION** |
+| Result filtering & pagination | **PRODUCTION** |
+| Admin observability (`/admin/stats`) | **PRODUCTION**, authenticated |
+| Admin purge (single search / expired) | **PRODUCTION**, authenticated |
+| 30-day data retention | **PRODUCTION** |
+| GDELT adapter | Evaluated, NO-GO ([ADR 0005](docs/ADR/0005-gdelt-gate.md)) |
 
 ## Architecture
 
-See [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full architectural contract, source validation report, and roadmap.
+```mermaid
+flowchart TB
+    B["Browser<br/>React 19 + Vite"] -->|"HTTPS"| API["FastAPI<br/>rate-limited · request logging"]
+
+    API -->|"POST /searches → 202"| PIPE["Async search pipeline<br/>asyncio.gather fan-out"]
+    API -->|"GET results / history"| DB[("PostgreSQL<br/>Neon")]
+
+    PIPE --> W["Wikipedia adapter"]
+    PIPE --> G["The Guardian adapter"]
+    PIPE --> R["Reddit adapter<br/>(not configured yet)"]
+
+    W & G & R -->|"canonical SourceResult<br/>+ raw provenance JSON"| PERSIST["Persist results + source events"]
+
+    PERSIST --> DEDUP["Deduplication<br/>exact + fuzzy → annotate groups"]
+    DEDUP --> SEM{"SEM1 semantic stage<br/>SEMANTIC_ENABLED=false"}
+    SEM -->|"disabled/failure → pure C4"| RANK["C4 ranking<br/>relevance · freshness · quality · diversity"]
+    RANK --> DB
+
+    ADMIN(["Operator"]) -->|"X-Admin-Key"| SEC["Authenticated admin surface<br/>/admin/stats · purge endpoints"]
+    SEC --> DB
+
+    CLEANUP["Retention cleanup (30 days)<br/>startup task · batched deletes"] --> DB
+```
+
+Detailed component documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Key capabilities
+
+- **One query, three source classes** — reference, news, and social results normalized into a single `SourceResult` contract with full raw-payload provenance.
+- **Honest failure handling** — each source is isolated with its own timeout (4.5 s) and database session; one failing source degrades the search to `partial` instead of failing everything.
+- **Annotate-don't-delete deduplication** — duplicate clusters are detected (canonical URL, normalized title, fuzzy match), grouped with evidence, and marked; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)).
+- **C4 ranking** — relevance, freshness, quality, and diversity signals composed into a deterministic total order, persisted per result.
+- **Query-time filters** — source type, time window, canonical-only, and language views over persisted rankings without re-ranking.
+- **Operational observability** — authenticated aggregate statistics: search volume, latency percentiles, per-source outcomes, dedup metrics, top normalized queries.
+- **Data lifecycle** — searches older than 30 days are deleted automatically (batched, transactional, dependency-safe); operators can purge a specific search or all expired records via authenticated endpoints.
+
+## Research & evaluation
+
+Ranking decisions are made against a frozen evaluation corpus (16 queries, 365 judged items) with pre-registered candidates and multi-metric gates. The ledger is intentionally full of NO-GOs:
+
+| Experiment | Result |
+|---|---|
+| BM25 relevance baseline | Evaluated ([ADR 0007](docs/ADR/0007-bm25-relevance-evaluation.md)) |
+| Phrase bonus | NO-GO ([ADR 0008](docs/ADR/0008-phrase-bonus-no-go.md)) |
+| Score normalization variants | NO-GO ([ADR 0009](docs/ADR/0009-c4-normalization-no-go.md)) |
+| Alternative relevance signal | NO-GO ([ADR 0010](docs/ADR/0010-c4-relevance-signal-no-go.md)) |
+| Semantic relevance (SEM1) | Experimental GO ([ADR 0011](docs/ADR/0011-semantic-relevance-decision.md)) |
+
+SEM1 (ONNX-int8 MiniLM, local inference) measured **nDCG@10 = 0.8084 vs C4's 0.7850** on the frozen corpus. It remains **disabled in production** because inference on the Render free tier measured ~3.5 s per search — a latency the product should not pay ([ADR 0012](docs/ADR/0012-semantic-production-architecture.md)). The code ships dormant (`SEMANTIC_ENABLED=false`), fails safe to pure C4, and can be activated by configuration alone.
+
+The NO-GOs are deliberate outcomes of the evidence process, not unfinished work.
+
+## Security & privacy
+
+- No user accounts; the service is anonymous by design. No IPs, sessions, or identifiers are stored.
+- **Admin surface** (`/api/v1/admin/stats`, purge endpoints) requires an `X-Admin-Key` header checked with a constant-time comparison; it fails closed when unconfigured.
+- **Retention:** searches and their dependent rows persist for 30 days (`searches.created_at` clock), then are deleted automatically in FK-safe, transactional batches. Operators can purge immediately ([ADR 0013](docs/ADR/0013-data-retention-policy.md)).
+- Request logging records method, path, status, and latency only — never query text, headers, or secrets.
+- See [docs/PRIVACY.md](docs/PRIVACY.md) for what is stored and why.
+
+## Testing
+
+| Suite | Count |
+|---|---|
+| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, Postgres compatibility | 322 passed, 5 skipped |
+| Frontend (Vitest + Testing Library) | 53 passed |
+| Evaluation harness (corpus determinism, metric math, candidate gates) | 98 passed |
+
+Linting: `ruff` across backend and eval. CI runs all suites plus the frontend TypeScript build on every push ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+
+## Technology stack
+
+- **Backend:** Python 3.11, FastAPI, SQLAlchemy 2, Alembic, httpx, ONNX Runtime + 🤗 tokenizers
+- **Database:** PostgreSQL (Neon serverless)
+- **Frontend:** React 19, Vite 6, TypeScript 5.7, Vitest + Testing Library
+- **Ops:** GitHub Actions CI, Render (free tier)
+
+## Deployment
+
+- Backend: Render web service, auto-deploys from `main`. Schema managed by Alembic; runtime uses `create_all` for idempotent bootstrapping.
+- Frontend: Render static site from `frontend/dist`.
+- Database: Neon free-tier PostgreSQL. Migrations applied with `alembic upgrade head` from `backend/`.
+- Operational procedures: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
+## Current limitations
+
+- Reddit is implemented but disabled until credentials are configured; searches currently report `partial` because that source is unavailable.
+- Semantic ranking is implemented and measurably better offline, but disabled in production pending infrastructure with acceptable inference latency.
+- Search history is public to anyone holding a search ID; there are no user accounts (documented in [docs/PRIVACY.md](docs/PRIVACY.md)).
+- Single-process assumptions (in-memory rate limiting and caches) hold on the current single-worker deployment.
+
+## Roadmap
+
+Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMAP.md). Planned next:
+
+1. **M17 — Reddit activation** (configuration-only; restores full three-source coverage)
+2. **M18 — History privacy hardening + sources-proxy hygiene**
+3. Deferred: SEM1 activation (infrastructure-gated), further ranking experiments, accounts, alerting.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [PROJECT_SPEC.md](PROJECT_SPEC.md) | Original architectural contract and source validation |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current system overview |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Milestone history and plan |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Operational procedures |
+| [docs/PRIVACY.md](docs/PRIVACY.md) | Data storage, retention, and logging boundaries |
+| [docs/ADR/](docs/ADR) | Decision records 0001–0013 |
+
+## License
+
+See [LICENSE](LICENSE).
