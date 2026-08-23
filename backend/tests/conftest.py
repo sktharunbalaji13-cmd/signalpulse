@@ -33,6 +33,16 @@ def disable_semantic_stage(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def admin_test_key(monkeypatch):
+    """M14.1: set a known admin API key for every test so authenticated
+    endpoints are accessible without per-test setup. Auth-specific tests
+    override this value as needed."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "admin_api_key", "test-admin-key")
+
+
+@pytest.fixture(autouse=True)
 def reset_rate_limiter():
     """Start each test with an empty rate-limit bucket (the limiter is a
     process-wide singleton keyed by client IP, so it must not accumulate

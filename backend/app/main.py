@@ -1,7 +1,8 @@
+import secrets
 from contextlib import asynccontextmanager
 from time import perf_counter
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -59,12 +60,19 @@ def create_app() -> FastAPI:
     app.include_router(sources_router, prefix="/api/v1/sources")
     app.include_router(searches_router, prefix="/api/v1")
 
+    def _verify_admin_key(request: Request) -> None:
+        """M14.1: constant-time admin key check. Fails closed."""
+        provided = request.headers.get("x-admin-key", "")
+        expected = settings.admin_api_key
+        if not expected or not secrets.compare_digest(provided, expected):
+            raise HTTPException(status_code=401, detail="Admin authentication required")
+
     def admin_stats_endpoint(
+        request: Request,
         window: str = "7d",
         session: Session = Depends(get_session),  # noqa: B008
     ):
-        from fastapi import HTTPException
-
+        _verify_admin_key(request)
         try:
             validate_window(window)
         except ValueError as exc:

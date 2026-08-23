@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: float = 60.0
     max_in_flight_searches: int = 8
 
+    # M14.1 admin API key (fail-closed): protects /api/v1/admin/stats.
+    # Empty string = deny all requests (key required but impossible to match).
+    admin_api_key: str = ""
+
     database_url: str = "sqlite:///./signalpulse.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

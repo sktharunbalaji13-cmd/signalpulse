@@ -2,8 +2,10 @@
 
 Covers: empty database, populated data, mixed statuses, source failures,
 percentile calculations, dedup metrics, semantic states, zero-result searches,
-malformed window parameter, and read-only behavior.
+window parameter validation, and read-only behavior.
 """
+
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine
@@ -13,6 +15,9 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 from app.db import session as db_session
 from app.db.models import Base, Search
+
+_ADMIN_KEY = "test-admin-key"
+_ADMIN_HEADERS = {"X-Admin-Key": _ADMIN_KEY}
 
 
 @pytest.fixture()
@@ -39,8 +44,10 @@ def _seed_search(factory, query="test", status="completed",
 
 
 class TestAdminStatsEmptyDB:
-    def test_empty_database_returns_zeroed_metrics(self, client, session_factory):
-        resp = client.get("/api/v1/admin/stats")
+    def test_empty_database_returns_zeroed_metrics(self, client):
+        resp = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        )
         assert resp.status_code == 200
         body = resp.json()
         assert body["searches"]["total"] == 0
@@ -60,15 +67,19 @@ class TestAdminStatsPopulated:
                 s.add(search)
                 s.commit()
 
-    def test_total_count(self, client, session_factory, monkeypatch):
+    def test_total_count(self, client, session_factory):
         self._seed(session_factory, 3)
-        body = client.get("/api/v1/admin/stats").json()
+        body = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        ).json()
         assert body["searches"]["total"] == 3
 
     def test_by_status_counts(self, client, session_factory):
         self._seed(session_factory, 6, ["completed", "completed", "partial",
                                         "failed", "completed", "partial"])
-        body = client.get("/api/v1/admin/stats").json()["searches"]["by_status"]
+        body = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        ).json()["searches"]["by_status"]
         assert body["completed"] == 3
         assert body["partial"] == 2
         assert body["failed"] == 1
@@ -80,13 +91,13 @@ class TestAdminStatsPopulated:
                 s.add(Search(query=f"q{i}", normalized_query=f"q{i}",
                              status="completed", duration_ms=d))
                 s.commit()
-        body = client.get("/api/v1/admin/stats").json()
+        body = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        ).json()
         assert body["latency_ms"]["p50"] == 1500
         assert body["latency_ms"]["p95"] >= 2000
 
     def test_source_events_aggregated(self, client, session_factory):
-        from datetime import UTC, datetime
-
         with session_factory() as s:
             search = Search(query="x", normalized_query="x", status="completed")
             s.add(search)
@@ -102,7 +113,9 @@ class TestAdminStatsPopulated:
                                   status=status, result_count=cnt, latency_ms=lat,
                                   created_at=datetime.now(UTC)))
             s.commit()
-        body = client.get("/api/v1/admin/stats").json()
+        body = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        ).json()
         wiki = body["sources"].get("Wikipedia", {})
         assert wiki.get("success") == 1
         assert wiki.get("avg_latency_ms") == 300
@@ -112,25 +125,33 @@ class TestSemanticStats:
     def test_disabled_status_reported(self, client, session_factory, monkeypatch):
         monkeypatch.setattr(settings, "semantic_enabled", False)
         client.post("/api/v1/searches", json={"query": "ai"})
-        body = client.get("/api/v1/admin/stats").json()
+        body = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        ).json()
         assert body["semantic"].get("disabled", 0) >= 1
 
 
-class TestMalformedWindow:
+class TestWindowValidation:
     def test_invalid_window_422(self, client):
-        resp = client.get("/api/v1/admin/stats?window=5d")
+        resp = client.get(
+            "/api/v1/admin/stats?window=5d", headers=_ADMIN_HEADERS,
+        )
         assert resp.status_code == 422
 
     def test_valid_windows_accepted(self, client):
         for w in ("24h", "7d", "30d"):
-            resp = client.get(f"/api/v1/admin/stats?window={w}")
+            resp = client.get(
+                f"/api/v1/admin/stats?window={w}", headers=_ADMIN_HEADERS,
+            )
             assert resp.status_code == 200
 
 
 class TestReadOnly:
     def test_stats_endpoint_does_not_write(self, client, session_factory):
         before = client.get("/api/v1/searches").json()["items"]
-        client.get("/api/v1/admin/stats")
+        client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        )
         after = client.get("/api/v1/searches").json()["items"]
         assert len(before) == len(after)
 
@@ -146,5 +167,7 @@ class TestZeroResults:
             s.add(search)
             s.commit()
 
-        body = client.get("/api/v1/admin/stats").json()
+        body = client.get(
+            "/api/v1/admin/stats", headers=_ADMIN_HEADERS,
+        ).json()
         assert body["queries"]["empty_result_count"] >= 1
