@@ -81,3 +81,17 @@ def enforce_create_limits(request: Request, session: Session) -> None:
             status_code=429,
             detail="Too many searches in progress; try again shortly.",
         )
+
+
+def enforce_rate_limit(request: Request) -> None:
+    """Raise HTTP 429 if the client exceeds its per-IP sliding-window bucket.
+
+    M19.1: applied to the sources proxy as well — same limiter instance,
+    same policy, one budget per IP across expensive endpoints. No in-flight
+    check here: the proxy runs no pipeline job.
+    """
+    if not limiter().allow(client_ip(request)):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests; slow down and try again shortly.",
+        )

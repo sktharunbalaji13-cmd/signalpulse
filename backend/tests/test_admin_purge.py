@@ -128,7 +128,11 @@ class TestPublicEndpointsUnchanged:
             _seed(s, query="kept")
         r = client.get("/api/v1/searches")
         assert r.status_code == 200
-        assert [item["query"] for item in r.json()["items"]] == ["kept"]
+        items = r.json()["items"]
+        assert len(items) == 1
+        # M19.1: listing serves operational metadata only.
+        assert items[0]["search_id"]
+        assert "query" not in items[0]
 
     def test_search_submission_still_works(self, client):
         r = client.post("/api/v1/searches", json={"query": "privacy check"})

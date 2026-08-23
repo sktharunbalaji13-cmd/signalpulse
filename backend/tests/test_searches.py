@@ -304,5 +304,6 @@ def test_history_newest_first(client, guardian_key, reddit_creds):
     body = client.get("/api/v1/searches?limit=20").json()
     ids = [item["search_id"] for item in body["items"]]
     assert ids == [third, second, first]
-    assert body["items"][0]["query"] == "third query"
+    # M19.1: operational metadata only - no query text in listing responses.
+    assert all("query" not in item for item in body["items"])
     assert body["items"][0]["result_count"] == 2

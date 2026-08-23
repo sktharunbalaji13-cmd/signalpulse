@@ -1,8 +1,8 @@
-import type { SearchHistoryItem } from '../api/client'
+import type { LocalHistoryItem } from '../utils/historyStorage'
 import { formatDate } from '../utils/format'
 
 type SearchHistoryProps = {
-  items: SearchHistoryItem[]
+  items: LocalHistoryItem[]
   disabled?: boolean
   onSelect: (searchId: string) => void
 }

@@ -1,6 +1,6 @@
 # SignalPulse Roadmap
 
-Status: **post-M16.1**. Everything below marked ✅ is shipped and deployed;
+Status: **post-M19.1**. Everything below marked ✅ is shipped and deployed;
 items under *Next* / *Deferred* are **planned, not implemented**.
 
 ## Completed milestones
@@ -20,6 +20,9 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M14 | Admin authentication: fail-closed `X-Admin-Key`, constant-time compare | Live, production-verified |
 | M15 | 30-day retention (`RETENTION_DAYS`), batched FK-safe cleanup, admin purge endpoints, `created_at` index | Live; first run deleted 0 records as predicted ([ADR 0013](ADR/0013-data-retention-policy.md)) |
 | M16 | Consolidated gap analysis; documentation & repository consolidation | This document set |
+| M17 | Reddit activation readiness | Adapter audited production-ready; **blocked externally** on API approval |
+| M17.5 | Hacker News source evaluation & implementation | Keyless Algolia adapter live — 4th source; zero core-pipeline changes ([ADR 0014](ADR/0014-hacker-news-source.md)) |
+| M18 | Multi-source production quality audit (Wikipedia + Guardian + HN) | 3 active sources at 100% success; battery p50≈1.1 s, p95 1.59 s (24 h); zero empty searches; ~0.3% dup rate; no HIGH/CRITICAL findings; Wikipedia top-5 share measured as by-design behavior |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus
@@ -27,17 +30,13 @@ and harness remain the gate for any future ranking change.
 
 ## Next
 
-### M17 — Reddit Activation & Multi-Source Completeness *(planned)*
+### M17 — Reddit Activation & Multi-Source Completeness *(planned — blocked externally)*
 Enable the implemented Reddit adapter by configuring OAuth credentials.
 Restores the social source class and removes today's misleading
-`partial` status on every search. Code, tests, and privacy scrubbing already
-exist; this is an operational milestone with verification protocol.
-
-### M18 — History Privacy Hardening + Sources Proxy Hygiene *(planned)*
-Address the last open medium finding from M13/M16: raw query text in the
-public history listing, plus test coverage and rate limiting for the
-`/sources/{name}/search` proxy. Requires a deliberate product decision on
-history semantics before implementation.
+`partial` status on every search. M17.0 audited the adapter production-ready
+(no code changes required); activation is **blocked solely on Reddit API
+access approval**. Verification protocol is ready to run the moment
+credentials land.
 
 ## Deferred
 

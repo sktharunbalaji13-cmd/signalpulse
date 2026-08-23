@@ -19,7 +19,6 @@ vi.mock('../api/client', () => {
       createSearch: vi.fn(),
       getSearch: vi.fn(),
       getResults: vi.fn(),
-      getHistory: vi.fn(),
     },
   }
 })
@@ -59,9 +58,23 @@ async function settle() {
   })
 }
 
+/** jsdom's built-in localStorage isn't functional under this runner; install
+ *  a minimal working stub so storage-dependent behavior can be exercised. */
+function installStorageStub(): void {
+  const store = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+      setItem: (key: string, value: string) => void store.set(key, String(value)),
+      removeItem: (key: string) => void store.delete(key),
+      clear: () => store.clear(),
+    },
+  })
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
-  mockedApi.getHistory.mockResolvedValue({ items: [] })
 })
 
 describe('useSearch', () => {
@@ -308,22 +321,24 @@ describe('useSearch', () => {
     expect(result.current.total).toBe(4)
   })
 
-  it('resets back to the landing state, keeping history', async () => {
-    mockedApi.getHistory.mockResolvedValue({
-      items: [
+  it('resets back to the landing state, keeping local history', async () => {
+    // M19.1: history is loaded from localStorage, not the server.
+    installStorageStub()
+    window.localStorage.setItem(
+      'signalpulse:history',
+      JSON.stringify([
         {
           search_id: 'h1',
           query: 'history',
           status: 'completed',
           created_at: '2026-08-19T12:00:00Z',
-          completed_at: null,
-          duration_ms: null,
           result_count: 2,
         },
-      ],
-    })
+      ]),
+    )
     const { result } = renderHook(() => useSearch())
     await waitFor(() => expect(result.current.history).toHaveLength(1))
+    expect(result.current.history[0].query).toBe('history')
 
     act(() => {
       result.current.reset()
@@ -331,5 +346,46 @@ describe('useSearch', () => {
     expect(result.current.viewState).toBe('idle')
     expect(result.current.history).toHaveLength(1)
     await settle()
+  })
+
+  it('records searches locally and finalizes their status', async () => {
+    installStorageStub()
+    mockedApi.createSearch.mockResolvedValue({ search_id: 'loc1', status: 'running' })
+    let calls = 0
+    mockedApi.getSearch.mockImplementation(async () => {
+      calls += 1
+      return {
+        search_id: 'loc1',
+        query: 'local query',
+        status: calls >= 2 ? ('completed' as const) : ('running' as const),
+        created_at: '2026-08-23T12:00:00Z',
+        completed_at: null,
+        duration_ms: null,
+        result_count: calls >= 2 ? 3 : 0,
+        sources: [],
+      }
+    })
+    mockedApi.getResults.mockResolvedValue(resultsResponse(3))
+
+    const { result } = renderHook(() => useSearch())
+    await act(async () => {
+      await result.current.runSearch('local query')
+    })
+
+    await waitFor(() =>
+      expect(result.current.history.some((h) => h.search_id === 'loc1')).toBe(true),
+    )
+    const entry = result.current.history.find((h) => h.search_id === 'loc1')
+    expect(entry?.query).toBe('local query')
+    expect(entry?.status).toBe('completed')
+    expect(entry?.result_count).toBe(3)
+    // Nothing is fetched from the server history listing anymore.
+  })
+
+  it('tolerates corrupt localStorage on startup', () => {
+    installStorageStub()
+    window.localStorage.setItem('signalpulse:history', '{not-json')
+    const { result } = renderHook(() => useSearch())
+    expect(result.current.history).toHaveLength(0)
   })
 })

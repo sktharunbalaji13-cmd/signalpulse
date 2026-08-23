@@ -42,7 +42,7 @@ credential-shaped keys stripped from raw payloads before storage.
 | Surface | Access | Contains |
 |---|---|---|
 | `/searches/{id}`, `/searches/{id}/results` | Public (ID required) | That search's query + results |
-| `/searches` (history list) | Public | Recent queries incl. text — see limitations below |
+| `/searches` (history list) | Public | **Operational metadata only** — IDs, statuses, timings, counts; **no query text** ([ADR 0015](ADR/0015-search-history-privacy-boundary.md)) |
 | `/admin/stats` | `X-Admin-Key` only | Aggregate metrics + top *normalized* queries |
 | Purge endpoints | `X-Admin-Key` only | Deletion counts only, never content |
 | Application logs | Platform (Render) | Method/path/status/latency + operational event metrics; **no query text, no headers, no secrets** |
@@ -50,12 +50,16 @@ credential-shaped keys stripped from raw payloads before storage.
 Admin authentication fails closed: with no key configured, every admin
 request is denied. Comparison is constant-time.
 
+## Recent-searches history (M19.1)
+
+"History" means **local browser history**: searches previously initiated from
+the same browser/device. Query labels are stored client-side in localStorage,
+never served globally; the server listing exposes only the operational fields
+above. Clearing browser data removes this history. Share links (`?s={id}`)
+continue to open a single search by its unguessable UUID.
+
 ## Current limitations (known and documented)
 
-- **Anonymous history exposure:** anyone can list recent queries via
-  `GET /api/v1/searches`. Because nothing identifies a requester, this
-  exposes topics, not people — but it is real exposure and a deliberate,
-  reviewed trade-off slated for hardening (roadmap M18).
 - **No user deletion requests:** there is no mechanism for an anonymous
   visitor to claim or remove a past search; the retention clock and operator
   purge are the deletion paths.

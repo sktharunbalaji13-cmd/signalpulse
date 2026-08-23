@@ -72,8 +72,10 @@ class SearchResultsResponse(BaseModel):
 
 
 class SearchHistoryItem(BaseModel):
+    """M19.1: operational metadata only - raw query text is never served
+    through the listing endpoint (ADR 0015)."""
+
     search_id: str
-    query: str
     status: str
     created_at: datetime
     completed_at: datetime | None = None

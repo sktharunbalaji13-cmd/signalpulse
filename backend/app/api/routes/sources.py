@@ -1,11 +1,15 @@
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from app.services.rate_limit import enforce_rate_limit
 from app.sources.base import SourceError, SourceResult
 from app.sources.registry import registry
 
-router = APIRouter(tags=["sources"])
+router = APIRouter(
+    tags=["sources"],
+    dependencies=[Depends(enforce_rate_limit)],  # M19.1: same per-IP budget as search creation
+)
 
 
 class SourceSearchResponse(BaseModel):

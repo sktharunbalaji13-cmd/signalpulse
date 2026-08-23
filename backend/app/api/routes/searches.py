@@ -182,11 +182,13 @@ async def list_searches(
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SearchHistoryResponse:
+    """M19.1 (ADR 0015): operational history only. Query text is intentionally
+    excluded - "history" means searches previously initiated from this browser,
+    tracked client-side; the server never publishes a global query list."""
     searches = session.scalars(select(Search).order_by(Search.created_at.desc()).limit(limit)).all()
     items = [
         SearchHistoryItem(
             search_id=search.id,
-            query=search.query,
             status=search.status,
             created_at=search.created_at,
             completed_at=search.completed_at,

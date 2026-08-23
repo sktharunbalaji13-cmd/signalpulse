@@ -52,20 +52,6 @@ export type SearchResultsResponse = {
   items: SearchResultItem[]
 }
 
-export type SearchHistoryItem = {
-  search_id: string
-  query: string
-  status: 'running' | 'completed' | 'partial' | 'failed'
-  created_at: string
-  completed_at: string | null
-  duration_ms: number | null
-  result_count: number
-}
-
-export type SearchHistoryResponse = {
-  items: SearchHistoryItem[]
-}
-
 export type ResultsOptions = {
   page?: number
   perPage?: number
@@ -131,9 +117,5 @@ export const api = {
     }
     const qs = params.toString()
     return request(`/api/v1/searches/${searchId}/results${qs ? `?${qs}` : ''}`)
-  },
-
-  getHistory(limit = 20): Promise<SearchHistoryResponse> {
-    return request(`/api/v1/searches?limit=${limit}`)
   },
 }

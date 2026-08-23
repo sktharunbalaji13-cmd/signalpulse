@@ -113,15 +113,15 @@ Linting: `ruff` across backend and eval. CI runs all suites plus the frontend Ty
 
 - Reddit is implemented but disabled until credentials are configured; searches currently report `partial` because that source is unavailable.
 - Semantic ranking is implemented and measurably better offline, but disabled in production pending infrastructure with acceptable inference latency.
-- Search history is public to anyone holding a search ID; there are no user accounts (documented in [docs/PRIVACY.md](docs/PRIVACY.md)).
+- Recent-searches history is stored locally in your browser only (query labels never leave your device); there are no user accounts.
 - Single-process assumptions (in-memory rate limiting and caches) hold on the current single-worker deployment.
 
 ## Roadmap
 
 Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMAP.md). Planned next:
 
-1. **M17 — Reddit activation** (configuration-only; restores full three-source coverage)
-2. **M18 — History privacy hardening + sources-proxy hygiene**
+1. **M17 — Reddit activation** (configuration-only; adapter ready — blocked externally on API approval)
+2. **M19 — Search history privacy & user-facing data boundary**
 3. Deferred: SEM1 activation (infrastructure-gated), further ranking experiments, accounts, alerting.
 
 ## Documentation

@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ApiError, api } from '../api/client'
+import {
+  addLocalHistory,
+  loadLocalHistory,
+  updateLocalHistory,
+  type LocalHistoryItem,
+} from '../utils/historyStorage'
 import type {
-  SearchHistoryItem,
   SearchResultItem,
   SearchStatusResponse,
   SourceStatus,
@@ -48,7 +53,7 @@ export type SearchState = {
   sources: SourceStatus[]
   error: string | null
   filters: Filters
-  history: SearchHistoryItem[]
+  history: LocalHistoryItem[]
   rateLimitRetryAt: number | null
 }
 
@@ -65,6 +70,12 @@ const initialState: SearchState = {
   filters: { ...DEFAULT_FILTERS },
   history: [],
   rateLimitRetryAt: null,
+}
+
+/** M19.1: local history is read lazily at hook init so each mount reflects
+ * current browser storage. */
+function initialHistory(): LocalHistoryItem[] {
+  return typeof window === 'undefined' ? [] : loadLocalHistory()
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -90,13 +101,17 @@ function describeApiError(err: unknown): { viewState: SearchViewState; error: st
 }
 
 export function useSearch() {
-  const [state, setState] = useState<SearchState>(initialState)
+  const [state, setState] = useState<SearchState>(() => ({
+    ...initialState,
+    history: initialHistory(),
+  }))
   const runIdRef = useRef(0)
   const searchIdRef = useRef<string | null>(null)
   const viewRef = useRef<SearchViewState>('idle')
   const filtersRef = useRef<Filters>({ ...DEFAULT_FILTERS })
   const pageRef = useRef(1)
   const seenCountRef = useRef(0)
+  const totalRef = useRef(0)
 
   useEffect(() => {
     return () => {
@@ -124,6 +139,7 @@ export function useSearch() {
         language: f.language || undefined,
       })
       if (runIdRef.current !== runId) return false
+      totalRef.current = res.total
       patch({
         results: res.items,
         total: res.total,
@@ -135,15 +151,21 @@ export function useSearch() {
     [patch],
   )
 
-  const refreshHistory = useCallback(
-    async (runId: number) => {
-      try {
-        const h = await api.getHistory(20)
-        if (runIdRef.current !== runId) return
-        patch({ history: h.items })
-      } catch {
-        // history is best-effort only
-      }
+  /** M19.1: history is local. Record the search at creation time and refresh
+   * its terminal status/count once the pipeline finishes; nothing is fetched
+   * from the server listing endpoint. */
+  const recordHistoryEntry = useCallback((searchId: string, query: string) => {
+    patch({ history: addLocalHistory({ search_id: searchId, query, created_at: new Date().toISOString() }) })
+  }, [])
+
+  const finalizeHistoryEntry = useCallback(
+    (searchId: string, status: string, resultCount: number) => {
+      patch({
+        history: updateLocalHistory(searchId, {
+          status,
+          result_count: resultCount,
+        }),
+      })
     },
     [patch],
   )
@@ -183,7 +205,7 @@ export function useSearch() {
 
         if (status.status === 'failed') {
           patch({ viewState: 'failed', error: null })
-          void refreshHistory(runId)
+          finalizeHistoryEntry(searchId, 'failed', 0)
           return
         }
 
@@ -194,12 +216,13 @@ export function useSearch() {
           },
         )
         if (!done || runIdRef.current !== runId) return
-        patch({ viewState: status.status === 'completed' ? 'completed' : 'partial' })
-        void refreshHistory(runId)
+        const terminal = status.status === 'completed' ? 'completed' : 'partial'
+        patch({ viewState: terminal })
+        finalizeHistoryEntry(searchId, terminal, totalRef.current)
         return
       }
     },
-    [fetchResults, patch, refreshHistory],
+    [fetchResults, patch, finalizeHistoryEntry],
   )
 
   const startRun = useCallback(
@@ -248,13 +271,13 @@ export function useSearch() {
       if (runIdRef.current !== runId) return
       const searchId = created.search_id
       patch({ searchId, viewState: 'running' })
+      recordHistoryEntry(searchId, query)
       if (typeof window !== 'undefined') {
         window.history.pushState({ s: searchId }, '', `?s=${encodeURIComponent(searchId)}`)
       }
-      void refreshHistory(runId)
       await pollUntilDone(runId, searchId)
     },
-    [patch, pollUntilDone, refreshHistory, startRun],
+    [patch, pollUntilDone, recordHistoryEntry, startRun],
   )
 
   const openSearch = useCallback(
@@ -303,9 +326,8 @@ export function useSearch() {
       })
       if (!done || runIdRef.current !== runId) return
       patch({ viewState: status.status === 'completed' ? 'completed' : 'partial' })
-      void refreshHistory(runId)
     },
-    [fetchResults, patch, pollUntilDone, refreshHistory],
+    [fetchResults, patch, pollUntilDone],
   )
 
   const setFilters = useCallback(
@@ -354,17 +376,8 @@ export function useSearch() {
     pageRef.current = 1
     setState((prev) => ({ ...initialState, history: prev.history }))
   }, [])
-
-  useEffect(() => {
-    const runId = runIdRef.current
-    api
-      .getHistory(20)
-      .then((h) => {
-        if (runIdRef.current !== runId) return
-        patch({ history: h.items })
-      })
-      .catch(() => {})
-  }, [patch])
+  // M19.1: local history is loaded at init (loadLocalHistory in initialState);
+  // no server fetch on mount.
 
   return {
     ...state,

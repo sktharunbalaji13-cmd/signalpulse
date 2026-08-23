@@ -22,7 +22,6 @@ vi.mock('./api/client', () => {
       createSearch: vi.fn(),
       getSearch: vi.fn(),
       getResults: vi.fn(),
-      getHistory: vi.fn(),
     },
   }
 })
@@ -56,7 +55,6 @@ beforeEach(() => {
     service: 'signalpulse-api',
     version: '0.1.0',
   })
-  mockedApi.getHistory.mockResolvedValue({ items: [] })
 })
 
 /** The results heading renders while still running (progressive UX), so

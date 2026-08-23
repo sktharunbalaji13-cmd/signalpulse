@@ -2,17 +2,15 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { SearchHistoryItem } from '../api/client'
+import type { LocalHistoryItem } from '../utils/historyStorage'
 import { SearchHistory } from './SearchHistory'
 
-function makeItem(overrides: Partial<SearchHistoryItem> = {}): SearchHistoryItem {
+function makeItem(overrides: Partial<LocalHistoryItem> = {}): LocalHistoryItem {
   return {
     search_id: 's1',
     query: 'artificial intelligence',
     status: 'completed',
     created_at: '2026-08-19T12:00:00Z',
-    completed_at: null,
-    duration_ms: null,
     result_count: 7,
     ...overrides,
   }
