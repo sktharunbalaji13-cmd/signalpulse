@@ -113,6 +113,28 @@ body::before {
   letter-spacing: 0;
 }
 
+/* Bookend signal sweep: mirrors the footer's top-edge pulse, subtler and
+   slower so the sticky header stays calm. */
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(91, 156, 255, 0.14) 35%,
+    rgba(130, 180, 255, 0.5) 50%,
+    rgba(91, 156, 255, 0.14) 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: signal-sweep 6.5s linear infinite;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -285,6 +307,12 @@ label {
   box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
+/* Ready-to-transmit pulse: the submit button glows gently while idle,
+   echoing the status-dot pulse used elsewhere. Stops while busy. */
+.search-row button:not(:disabled) {
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
 button {
   font: inherit;
   padding: 0.55rem 1.15rem;
@@ -431,6 +459,15 @@ summary:focus-visible {
   color: var(--muted);
 }
 
+/* Source chips brighten on hover like a live channel coming online. */
+.srcsig:hover {
+  border-color: var(--border-strong);
+}
+
+.srcsig--ok:hover {
+  border-left-color: var(--accent-strong);
+}
+
 /* --- Results header -------------------------------------------------------- */
 
 .results-header {
@@ -494,6 +531,7 @@ summary:focus-visible {
 .signal {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -504,6 +542,33 @@ summary:focus-visible {
 .signal:hover {
   border-color: var(--border-strong);
   background: var(--surface-2);
+}
+
+/* Signal bar: a thin accent line sweeps in along the card's bottom edge on
+   hover, reading as "picking up" the signal. Quiet, single-moment motion. */
+.signal::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(91, 156, 255, 0.35) 45%,
+    var(--accent-strong) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 200% 0;
+  transition: background-position 0.5s ease;
+}
+
+.signal:hover::after,
+.signal:focus-within::after {
+  background-position: 0% 0;
 }
 
 .signal__rank {
@@ -1245,7 +1310,9 @@ summary:focus-visible {
   .status-dot--pulse,
   .skeleton-line,
   .footer__pulse,
-  .footer::before {
+  .footer::before,
+  .topbar::after,
+  .search-row button:not(:disabled) {
     animation: none;
   }
 
