@@ -42,16 +42,11 @@ export function FilterBar({ filters, disabled = false, onChange }: FilterBarProp
     filters.duplicates === 'canonical' ||
     filters.language !== ''
 
-  const clearFilters = () => {
-    onChange({ sourceTypes: [], time: 'all', duplicates: 'all', language: '' })
-  }
-
   return (
-    <fieldset className="filter-bar" disabled={disabled}>
-      <legend>Filters</legend>
+    <div className="filter-bar">
       <div className="filter-bar__controls">
-        <fieldset className="filter-group">
-          <legend>Source type</legend>
+        <fieldset className="filter-group" disabled={disabled}>
+          <legend>Source Type</legend>
           {SOURCE_TYPES.map((sourceType) => (
             <label key={sourceType} className="filter-check">
               <input
@@ -64,50 +59,60 @@ export function FilterBar({ filters, disabled = false, onChange }: FilterBarProp
           ))}
         </fieldset>
 
-        <label className="filter-field">
-          Time
-          <select
-            value={filters.time}
-            onChange={(event) => onChange({ time: event.target.value as Filters['time'] })}
-          >
-            {TIME_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="filter-fields">
+          <label className="filter-field">
+            Time
+            <select
+              disabled={disabled}
+              value={filters.time}
+              onChange={(event) => onChange({ time: event.target.value as Filters['time'] })}
+            >
+              {TIME_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="filter-field">
-          Duplicates
-          <select
-            value={filters.duplicates}
-            onChange={(event) =>
-              onChange({ duplicates: event.target.value as Filters['duplicates'] })
-            }
-          >
-            {DUPLICATE_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="filter-field">
+            Duplicates
+            <select
+              disabled={disabled}
+              value={filters.duplicates}
+              onChange={(event) =>
+                onChange({ duplicates: event.target.value as Filters['duplicates'] })
+              }
+            >
+              {DUPLICATE_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="filter-field">
-          Language
-          <input
-            type="text"
-            value={languageDraft}
-            placeholder="e.g. en"
-            maxLength={3}
-            spellCheck={false}
-            onChange={(event) => handleLanguage(event.target.value)}
-          />
-        </label>
+          <label className="filter-field">
+            Language
+            <input
+              type="text"
+              disabled={disabled}
+              value={languageDraft}
+              placeholder="Any"
+              maxLength={3}
+              spellCheck={false}
+              onChange={(event) => handleLanguage(event.target.value)}
+            />
+          </label>
+        </div>
 
         {filtersActive && (
-          <button type="button" className="filter-clear" onClick={clearFilters}>
+          <button
+            type="button"
+            className="filter-clear"
+            disabled={disabled}
+            onClick={() => onChange({ sourceTypes: [], time: 'all', duplicates: 'all', language: '' })}
+          >
             Clear filters
           </button>
         )}
@@ -115,6 +120,6 @@ export function FilterBar({ filters, disabled = false, onChange }: FilterBarProp
       {showLanguageHint && (
         <p className="filter-hint">Language must be a 2–3 letter code like en.</p>
       )}
-    </fieldset>
+    </div>
   )
 }
