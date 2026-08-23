@@ -1,17 +1,19 @@
 from contextlib import asynccontextmanager
 from time import perf_counter
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.routes.admin import get_admin_stats, validate_window
 from app.api.routes.health import router as health_router
 from app.api.routes.searches import router as searches_router
 from app.api.routes.sources import router as sources_router
 from app.core.config import settings
 from app.core.logging import log_event
 from app.db.models import Base
-from app.db.session import engine
+from app.db.session import engine, get_session
 
 
 @asynccontextmanager
@@ -56,6 +58,27 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(sources_router, prefix="/api/v1/sources")
     app.include_router(searches_router, prefix="/api/v1")
+
+    def admin_stats_endpoint(
+        window: str = "7d",
+        session: Session = Depends(get_session),  # noqa: B008
+    ):
+        from fastapi import HTTPException
+
+        try:
+            validate_window(window)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return get_admin_stats(session, window)
+
+    app.add_api_route(
+        "/api/v1/admin/stats",
+        admin_stats_endpoint,
+        methods=["GET"],
+        tags=["admin"],
+        name="admin_stats",
+    )
+
     return app
 
 
