@@ -13,7 +13,10 @@ export function Footer() {
     <footer className="footer">
       <div className="footer__inner">
         <div className="footer__brand">
-          <span className="footer__mark">▸</span>
+          <span className="footer__mark" aria-hidden="true">
+            ▸
+          </span>
+          <span className="footer__pulse" aria-hidden="true" />
           <span className="footer__name">SIGNALPULSE</span>
           <span className="footer__tagline">Multi-source intelligence workspace</span>
         </div>
@@ -23,6 +26,9 @@ export function Footer() {
               <a href={link.href} target="_blank" rel="noopener noreferrer">
                 <span className="footer__link-label">{link.label}</span>
                 <span className="footer__link-value">{link.value}</span>
+                <span className="footer__link-arrow" aria-hidden="true">
+                  ↗
+                </span>
               </a>
             </li>
           ))}
