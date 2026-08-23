@@ -105,6 +105,10 @@ body::before {
   font-size: 0.85rem;
   letter-spacing: 0.22em;
   color: var(--ink);
+  /* M-pulse: hollow letters whose borders pulse around each glyph. */
+  -webkit-text-stroke: 1px var(--accent);
+  -webkit-text-fill-color: transparent;
+  animation: outline-pulse 2.4s ease-in-out infinite;
 }
 
 .topbar__brand::before {
@@ -173,6 +177,17 @@ body::before {
   }
   50% {
     box-shadow: 0 0 0 5px rgba(61, 214, 140, 0);
+  }
+}
+
+/* M-pulse: the brand letters breathe — their border dims and brightens. */
+@keyframes outline-pulse {
+  0%,
+  100% {
+    -webkit-text-stroke-color: var(--accent);
+  }
+  50% {
+    -webkit-text-stroke-color: var(--accent-strong);
   }
 }
 
@@ -1133,6 +1148,10 @@ summary:focus-visible {
   font-weight: 700;
   letter-spacing: 0.22em;
   color: var(--ink);
+  /* M-pulse: matches the topbar brand treatment. */
+  -webkit-text-stroke: 1px var(--accent);
+  -webkit-text-fill-color: transparent;
+  animation: outline-pulse 2.4s ease-in-out infinite;
 }
 
 .footer__tagline {
@@ -1312,7 +1331,9 @@ summary:focus-visible {
   .footer__pulse,
   .footer::before,
   .topbar::after,
-  .search-row button:not(:disabled) {
+  .search-row button:not(:disabled),
+  .topbar__brand,
+  .footer__name {
     animation: none;
   }
 
