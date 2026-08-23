@@ -1,4 +1,4 @@
-"""M3-D production ranking: the C4 combined model (design §5, experiment-validated).
+"""M3-D production ranking: the C4 combined model (design Â§5, experiment-validated).
 
 Combined formula, accepted as the M3-D production ranking model and NOT to be
 tuned (the experiment is the reference, preserved in ``eval/ranking_eval.py``
@@ -10,10 +10,10 @@ and reproduced bit-for-bit by the eval tests):
   in the title weigh 3, in the description weigh 1, min-max normalised per
   search;
 * freshness: the M3-C production scorer (``app.services.freshness``);
-* quality: design §5 constants (Guardian 0.90, Wikipedia 0.80, Reddit 0.50,
+* quality: design Â§5 constants (Guardian 0.90, Wikipedia 0.80, Reddit 0.50,
   "Global Wire" 0.85 documented placeholder, unknown 0.50);
 * weights: news/social (0.55, 0.30, 0.15), reference (0.65, 0.10, 0.25);
-* diversity: within a ±0.05 score band, source types alternate round-robin;
+* diversity: within a Â±0.05 score band, source types alternate round-robin;
 * total order: score desc, source-type priority (news < social < reference),
   published_at desc (None last), URL lexicographic;
 * duplicate awareness: members of a duplicate group inherit the canonical
@@ -108,6 +108,10 @@ def source_quality(source_type: str, source_name: str) -> float:
     return UNKNOWN_QUALITY
 
 
+def doc_key(title: str, description: str | None) -> str:
+    """Canonical document text key (matches the M10 embedding generator)."""
+    return f"{title}. {description}" if description else title
+
 def _ts_key(published_at: datetime | None) -> tuple[int, float]:
     if published_at is None:
         return (1, 0.0)  # missing timestamps sort last (ascending key)
@@ -118,7 +122,7 @@ def _ts_key(published_at: datetime | None) -> tuple[int, float]:
 
 
 def _diversity_alternate(rows: list[dict], band_width: float = BAND_WIDTH) -> list[dict]:
-    """Within each ±band score band, alternate source types (round-robin)."""
+    """Within each Â±band score band, alternate source types (round-robin)."""
     out: list[dict] = []
     i = 0
     while i < len(rows):
@@ -146,6 +150,7 @@ def rank_items(
     query: str,
     *,
     now: datetime | None = None,
+    semantic_scores: dict[str, float] | None = None,
 ) -> list[RankedRow]:
     """Rank items by the validated C4 model, returning rows in final order.
 
@@ -153,6 +158,12 @@ def rank_items(
     the order is fully deterministic for a fixed instant. Duplicate group
     members inherit the canonical member's score; the canonical's fields
     drive relevance, freshness and quality for the whole group.
+
+    M11.1 (ADR 0012): when ``semantic_scores`` (item id -> cosine) is provided,
+    relevance becomes the pre-registered SEM1 blend
+    ``0.70 * lexical + 0.30 * semantic(min-max)``. Freshness/quality weights,
+    diversity, tie-breaks and dedup inheritance are unchanged; omitting the
+    parameter reproduces pure C4 exactly.
     """
     canonical_by_group: dict[str, Rankable] = {}
     for item in items:
@@ -164,6 +175,19 @@ def rank_items(
     max_raw = max(raw) if raw else 0
     raw_by_id = {item.id: raw_score for item, raw_score in zip(items, raw, strict=True)}
 
+    sem_vals = semantic_scores or {}
+    sem_span = None
+    if sem_vals:
+        smin = min(sem_vals.values())
+        smax = max(sem_vals.values())
+        sem_span = smax - smin
+
+    def _sem_norm(item_id: str) -> float:
+        value = sem_vals.get(item_id)
+        if value is None or not sem_span:
+            return 0.0
+        return (value - smin) / sem_span
+
     rows: list[dict] = []
     for item in items:
         effective = (
@@ -171,7 +195,12 @@ def rank_items(
             if item.duplicate_group_id
             else item
         )
-        relevance = raw_by_id[effective.id] / max_raw if max_raw else 0.0
+        lexical_relevance = raw_by_id[effective.id] / max_raw if max_raw else 0.0
+        relevance = (
+            0.70 * lexical_relevance + 0.30 * _sem_norm(item.id)
+            if semantic_scores is not None
+            else lexical_relevance
+        )
         freshness = freshness_score(effective.published_at, effective.source_type, now=now)
         quality = source_quality(effective.source_type, effective.source_name)
         w_rel, w_fresh, w_qual = WEIGHTS.get(effective.source_type, WEIGHTS["news"])

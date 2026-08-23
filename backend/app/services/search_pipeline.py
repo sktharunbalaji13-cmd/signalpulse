@@ -15,9 +15,11 @@ from app.db.models import (
     new_uuid,
     utcnow,
 )
+from app.services import semantic
 from app.services.canonicalize import dedupe_key
 from app.services.dedup import Candidate, detect_duplicates, select_canonical
-from app.services.ranking import Rankable, rank_items
+from app.services.ranking import Rankable, doc_key, rank_items
+from app.services.semantic import SemanticUnavailable
 from app.sources.base import SearchParams, SourceError
 from app.sources.registry import registry
 
@@ -48,7 +50,7 @@ async def _run_source(search: Search, source_name: str) -> dict:
 
     Each source runs inside a dedicated SQLAlchemy session so concurrent
     fan-out never shares a transaction across adapters. Returns its status
-    dict; never raises — failures are isolated and recorded per source.
+    dict; never raises Ã¢â‚¬â€ failures are isolated and recorded per source.
     """
     adapter = registry.get(source_name)
     if adapter is None:
@@ -175,11 +177,13 @@ def _annotate_duplicates(session: Session, search_id: str) -> dict:
     return {"groups": len(groups), "duplicates": duplicate_count}
 
 
-def _apply_ranking(session: Session, search_id: str) -> dict:
+def _apply_ranking(
+    session: Session, search_id: str, semantic_scores: dict[str, float] | None = None
+) -> dict:
     """Rank all results of a finished search with the M3-D C4 model.
 
     Persists ``rank_score`` and ``rank_components`` on every ``Result`` row
-    (design §5: activate the dormant columns). The results endpoint then
+    (design Ã‚Â§5: activate the dormant columns). The results endpoint then
     serves rows in rank order with the same total order as the ranker.
     """
     search = session.get(Search, search_id)
@@ -208,7 +212,9 @@ def _apply_ranking(session: Session, search_id: str) -> dict:
         )
         for result in results
     ]
-    ranked = rank_items(rankables, search.query, now=utcnow())
+    ranked = rank_items(
+        rankables, search.query, now=utcnow(), semantic_scores=semantic_scores
+    )
     for position, row in enumerate(ranked):
         result = results_by_id[row.id]
         result.rank_position = position
@@ -223,7 +229,7 @@ def _apply_ranking(session: Session, search_id: str) -> dict:
 
 
 async def _run_source_with_timeout(search: Search, source_name: str) -> dict:
-    """Run one source bounded by the pipeline-level timeout (design §15.3.1).
+    """Run one source bounded by the pipeline-level timeout (design Ã‚Â§15.3.1).
 
     ``asyncio.wait_for`` cancels a source that hangs without raising, so a
     misbehaving adapter can never block the whole search indefinitely. The
@@ -256,6 +262,68 @@ async def _run_source_with_timeout(search: Search, source_name: str) -> dict:
             "error": f"pipeline timeout after {timeout:g}s",
         }
 
+
+async def _run_semantic_stage(
+    session: Session, search_id: str, search: Search
+) -> tuple[dict[str, float] | None, dict]:
+    """M11.1 optional semantic stage (ADR 0012). Never fails a search.
+
+    Embeds the normalized query (LRU-cached) and the deduped result texts via
+    local ONNX-int8 MiniLM, then returns per-result cosine scores for the SEM1
+    blend. ANY failure/timeout returns (None, failed-status) so ranking
+    degrades to byte-equivalent C4. Runs in a worker thread bounded by its own
+    timeout so a slow model can never stall the job.
+    """
+    if not settings.semantic_enabled:
+        return None, {"status": "disabled"}
+    started = monotonic()
+
+    def work() -> dict[str, float]:
+        results = (
+            session.query(Result)
+            .filter(Result.search_id == search_id)
+            .order_by(Result.id)
+            .all()
+        )
+        if not results:
+            return {}
+        query_text = search.normalized_query or search.query
+        qvec = semantic.embed_query(query_text)
+        if qvec is None:
+            raise SemanticUnavailable("query embedding failed")
+        texts = [doc_key(r.title, r.description) for r in results]
+        doc_vecs = semantic.embed_texts(texts)
+        if doc_vecs is None:
+            raise SemanticUnavailable("document embedding failed")
+        scores: dict[str, float] = {}
+        for result, text in zip(results, texts, strict=True):
+            dvec = doc_vecs.get(text)
+            if dvec is None:
+                continue
+            value = semantic.cosine(qvec, dvec)
+            if value is not None:
+                scores[result.id] = value
+        return scores
+
+    try:
+        scores = await asyncio.wait_for(
+            asyncio.to_thread(work), timeout=settings.semantic_timeout_seconds
+        )
+        ms = int((monotonic() - started) * 1000)
+        log_event("semantic_completed", search_id=search_id, ms=ms)
+        return scores, {"status": "ok", "ms": ms}
+    except TimeoutError:
+        ms = int((monotonic() - started) * 1000)
+        log_event("semantic_timeout", search_id=search_id, ms=ms)
+        return None, {"status": "timeout", "ms": ms}
+    except SemanticUnavailable as exc:
+        ms = int((monotonic() - started) * 1000)
+        log_event("semantic_unavailable", search_id=search_id, error=str(exc)[:120])
+        return None, {"status": "unavailable", "error": type(exc).__name__, "ms": ms}
+    except Exception as exc:  # noqa: BLE001 - degrade to C4 on any failure
+        ms = int((monotonic() - started) * 1000)
+        log_event("semantic_failed", search_id=search_id, error=type(exc).__name__)
+        return None, {"status": "failed", "error": type(exc).__name__, "ms": ms}
 
 async def run_search_job(search_id: str) -> None:
     """Background job: run every enabled source concurrently, persist outcomes.
@@ -305,12 +373,16 @@ async def run_search_job(search_id: str) -> None:
         search.duration_ms = int((monotonic() - started) * 1000)
         postpass_started = monotonic()
         dedup_stats = _annotate_duplicates(session, search_id)
-        ranking_stats = _apply_ranking(session, search_id)
+        semantic_scores, semantic_stats = await _run_semantic_stage(
+            session, search_id, search
+        )
+        ranking_stats = _apply_ranking(session, search_id, semantic_scores)
         postpass_ms = int((monotonic() - postpass_started) * 1000)
         search.stats = {
             "sources": source_statuses,
             "dedup": dedup_stats,
             "ranking": ranking_stats,
+            "semantic": semantic_stats,
             "timing_ms": {
                 "sources_ms": sources_ms,
                 "postpass_ms": postpass_ms,

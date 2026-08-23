@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     # the locked <= 5 s target once the measured post-pass budget is added.
     source_timeout_seconds: float = 4.5
 
+    # M11.1 semantic relevance stage (ADR 0012): ONNX-int8 MiniLM local
+    # inference as an optional, failure-isolated ranking enhancement. When the
+    # stage fails/times out/is disabled, ranking falls back to pure C4.
+    # DEFAULT OFF: production rollout is a deliberate, separate step - set
+    # SEMANTIC_ENABLED=true explicitly after deployment verification.
+    semantic_enabled: bool = False
+    semantic_timeout_seconds: float = 10.0
+    semantic_model_dir: str = "models/minilm-int8"
+
     # M4 production CORS (design M4 §7): exact allow-list of frontend origins;
     # credentials are off for the public API.
     cors_allow_credentials: bool = False

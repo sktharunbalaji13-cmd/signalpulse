@@ -24,6 +24,15 @@ def clean_secrets(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def disable_semantic_stage(monkeypatch):
+    """M11.1: keep the semantic stage off unless a test opts in, so unrelated
+    tests never load the model or pay inference cost."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "semantic_enabled", False)
+
+
+@pytest.fixture(autouse=True)
 def reset_rate_limiter():
     """Start each test with an empty rate-limit bucket (the limiter is a
     process-wide singleton keyed by client IP, so it must not accumulate
