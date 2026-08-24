@@ -108,6 +108,7 @@ class TestDisabledSourceSemantics:
                 "Hacker News",
                 "Reddit",
                 "arXiv",
+                "GitHub",
             }
             reddit = next(e for e in events if e.source_name == "Reddit")
             assert reddit.status == "disabled"

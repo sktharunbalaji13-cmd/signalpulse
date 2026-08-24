@@ -153,7 +153,14 @@ def test_source_events_record_guardian_outcomes(client, session_factory, guardia
             e.source_name: e
             for e in session.query(SourceEvent).filter_by(search_id=search_id).all()
         }
-        assert set(events) == {"Wikipedia", "The Guardian", "Reddit", "Hacker News", "arXiv"}
+        assert set(events) == {
+            "Wikipedia",
+            "The Guardian",
+            "Reddit",
+            "Hacker News",
+            "arXiv",
+            "GitHub",
+        }
         wikipedia_event = events["Wikipedia"]
         assert wikipedia_event.status == "success"
         assert wikipedia_event.result_count == 2

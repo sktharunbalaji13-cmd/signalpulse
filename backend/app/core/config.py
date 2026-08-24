@@ -96,6 +96,15 @@ class Settings(BaseSettings):
     arxiv_max_results: int = 10
     arxiv_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
 
+    # M22.2 GitHub adapter (ADR 0019): REST repository search with a backend-
+    # held fine-grained PAT (zero extra scopes; public read is implicit).
+    # Empty token -> source reports disabled (M21.3 semantics), never failure.
+    github_api_url: str = "https://api.github.com/search/repositories"
+    github_token: str = ""
+    github_timeout_seconds: float = 5.0
+    github_max_results: int = 10
+    github_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

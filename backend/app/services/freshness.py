@@ -38,11 +38,15 @@ SOCIAL_HALF_LIFE_HOURS = 12.0
 # (the frozen corpus carries no research judgments); it affects research rows
 # only and is revisable by future experiments.
 RESEARCH_HALF_LIFE_HOURS = 24.0 * 30.0
+# M22.2 (ADR 0019): repository freshness is last engineering activity
+# (pushed_at). Active projects push within weeks; abandonment fades slowly -
+# a quarterly horizon, far slower than news.
+CODE_HALF_LIFE_HOURS = 24.0 * 90.0
 FRESHNESS_FLOOR = 0.05
 MISSING_TIMESTAMP_SCORE = 0.25
 REFERENCE_FRESHNESS = 0.5
 
-_SOURCE_TYPES = frozenset({"news", "social", "reference", "research"})
+_SOURCE_TYPES = frozenset({"news", "social", "reference", "research", "code"})
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -91,5 +95,6 @@ def freshness_score(
         "news": NEWS_HALF_LIFE_HOURS,
         "social": SOCIAL_HALF_LIFE_HOURS,
         "research": RESEARCH_HALF_LIFE_HOURS,
+        "code": CODE_HALF_LIFE_HOURS,
     }[source_type]
     return _decay(age_hours, half_life)

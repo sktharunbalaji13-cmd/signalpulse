@@ -14,6 +14,7 @@ REDDIT_SEARCH_URL = "https://oauth.reddit.com/search"
 GDELT_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 HACKER_NEWS_API_URL = "https://hn.algolia.com/api/v1/search"
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
+GITHUB_SEARCH_URL = "https://api.github.com/search/repositories"
 
 
 def load_fixture(name: str) -> dict:
@@ -180,4 +181,25 @@ def mock_arxiv_empty() -> None:
 def mock_arxiv_timeout() -> None:
     respx.get(ARXIV_API_URL).mock(
         side_effect=httpx.ConnectTimeout("timeout", request=httpx.Request("GET", ARXIV_API_URL))
+    )
+
+
+GITHUB_EMPTY_PAYLOAD = {"total_count": 0, "incomplete_results": False, "items": []}
+
+
+def mock_github_success() -> None:
+    respx.get(GITHUB_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("github_search_success.json"))
+    )
+
+
+def mock_github_empty() -> None:
+    respx.get(GITHUB_SEARCH_URL).mock(return_value=httpx.Response(200, json=GITHUB_EMPTY_PAYLOAD))
+
+
+def mock_github_timeout() -> None:
+    respx.get(GITHUB_SEARCH_URL).mock(
+        side_effect=httpx.ConnectTimeout(
+            "timeout", request=httpx.Request("GET", GITHUB_SEARCH_URL)
+        )
     )

@@ -716,6 +716,12 @@ summary:focus-visible {
   background: rgba(199, 146, 234, 0.12);
 }
 
+.chip--code {
+  color: var(--accent);
+  border-color: rgba(91, 156, 255, 0.3);
+  background: transparent;
+}
+
 .chip--duplicate {
   color: var(--muted);
   text-transform: none;
