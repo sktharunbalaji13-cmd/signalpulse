@@ -24,6 +24,14 @@ class SourceRegistry:
     def names(self) -> list[str]:
         return sorted(self._adapters)
 
+    def adapters(self) -> list[BaseSourceAdapter]:
+        """All registered adapter instances (not only the configured ones)."""
+        return list(self._adapters.values())
+
+    def has_enabled(self) -> bool:
+        """M21.3: at least one registered adapter is configured to run."""
+        return any(adapter.is_configured() for adapter in self._adapters.values())
+
 
 registry = SourceRegistry()
 registry.register("wikipedia", WikipediaAdapter())

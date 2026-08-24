@@ -35,6 +35,9 @@ class QueryCaptureAdapter:
     source_type = "news"
     source_name = "Capture"
 
+    def is_configured(self) -> bool:
+        return True
+
     def __init__(self) -> None:
         self.seen_queries: list[str] = []
 

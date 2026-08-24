@@ -22,6 +22,8 @@ class GuardianAdapter(BaseSourceAdapter):
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         self._client = client
 
+    def is_configured(self) -> bool:
+        return bool(settings.guardian_api_key)
     def _build_params(self, query: str, limit: int) -> dict:
         return {
             "q": query,

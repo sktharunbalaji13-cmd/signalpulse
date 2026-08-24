@@ -58,6 +58,9 @@ def test_happy_path_blends_and_records_ok(client, session_factory, monkeypatch):
         source_type = "news"
         source_name = "The Guardian"
 
+        def is_configured(self) -> bool:
+            return True
+
         async def search(self, query, params=None):
             now = datetime.now(UTC)
             return [

@@ -53,6 +53,16 @@ class BaseSourceAdapter(ABC):
     source_type: str
     source_name: str
 
+    def is_configured(self) -> bool:
+        """M21.3 (ADR 0017): whether the source can run right now.
+
+        A source missing required credentials is *disabled*, not failing:
+        the pipeline excludes disabled sources from the enabled set, records
+        them neutrally, and computes search status over enabled sources only.
+        Adapters with credential gates override this; the default is enabled.
+        """
+        return True
+
     @abstractmethod
     async def search(self, query: str, params: SearchParams | None = None) -> list[SourceResult]:
         """Fetch and normalize results for ``query``."""

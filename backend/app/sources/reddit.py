@@ -44,6 +44,8 @@ class RedditAdapter(BaseSourceAdapter):
         self._client = client
         self._auth = RedditAuth()
 
+    def is_configured(self) -> bool:
+        return bool(settings.reddit_client_id and settings.reddit_client_secret)
     def _auth_for(self) -> RedditAuth:
         return self._auth
 

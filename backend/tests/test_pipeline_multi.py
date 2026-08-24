@@ -158,8 +158,9 @@ def test_source_events_record_guardian_outcomes(client, session_factory, guardia
         assert guardian_event.error_message is not None
         assert guardian_event.latency_ms is not None
         reddit_event = events["Reddit"]
-        assert reddit_event.status == "failed"
-        assert reddit_event.error_type == "failed"
+        # M21.3: Reddit is unconfigured here -> disabled, not failed.
+        assert reddit_event.status == "disabled"
+        assert reddit_event.error_type == "disabled"
         assert reddit_event.error_message is not None
 
 
@@ -362,6 +363,9 @@ class FakeAdapter:
         self.source_name = source_name
         self._delay = delay_seconds
         self._result_count = result_count
+
+    def is_configured(self) -> bool:
+        return True
 
     async def search(self, query: str, params=None) -> list:
         from datetime import UTC, datetime

@@ -1,6 +1,6 @@
 # SignalPulse Roadmap
 
-Status: **post-M20.1**. Everything below marked ✅ is shipped and deployed;
+Status: **post-M21.3**. Everything below marked ✅ is shipped and deployed;
 items under *Next* / *Deferred* are **planned, not implemented**.
 
 ## Completed milestones
@@ -25,6 +25,8 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M18 | Multi-source production quality audit (Wikipedia + Guardian + HN) | 3 active sources at 100% success; battery p50≈1.1 s, p95 1.59 s (24 h); zero empty searches; ~0.3% dup rate; no HIGH/CRITICAL findings; Wikipedia top-5 share measured as by-design behavior |
 | M19.1 | Search history privacy boundary + sources-proxy hardening | Query text removed from `GET /searches`; frontend local-first (localStorage) history; proxy on shared per-IP rate-limit budget ([ADR 0015](ADR/0015-search-history-privacy-boundary.md)) |
 | M20.1 | Admin observability dashboard + HttpOnly session boundary | Protected `#/admin` dashboard over existing `/admin/stats`; admin key never enters the browser; CSS-only visuals, manual refresh only ([ADR 0016](ADR/0016-admin-observability-dashboard.md)) |
+| M21.1 | Presentation & portfolio credibility | Live-demo CTA, real production screenshots, measured-metrics bullet, GitHub homepage + topics |
+| M21.3 | Source availability semantics — "disabled" is not a failure | Unconfigured sources render neutrally and are excluded from status; searches read `completed` over enabled sources; credential transition auto-re-enables ([ADR 0017](ADR/0017-source-availability-semantics.md)) |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus

@@ -12,15 +12,16 @@ export function SourceStatusSummary({ sources }: SourceStatusSummaryProps) {
     <ul className="source-signals" aria-label="Source signals">
       {sources.map((source) => {
         const ok = source.status === 'success'
+        const disabled = source.status === 'disabled'
         const count = source.result_count ?? 0
         return (
           <li
             key={source.name}
-            className={`srcsig ${ok ? 'srcsig--ok' : 'srcsig--error'}`}
+            className={`srcsig ${ok ? 'srcsig--ok' : disabled ? 'srcsig--disabled' : 'srcsig--error'}`}
           >
             <div className="srcsig__head">
               <span>
-                {ok ? '✓ ' : '⚠ '}
+                {ok ? '✓ ' : disabled ? '○ ' : '⚠ '}
                 {source.name}
               </span>
             </div>
@@ -33,6 +34,8 @@ export function SourceStatusSummary({ sources }: SourceStatusSummaryProps) {
                   <div className="srcsig__latency">{source.latency_ms} ms</div>
                 )}
               </>
+            ) : disabled ? (
+              <div className="srcsig__count">disabled</div>
             ) : (
               <div className="srcsig__count">unavailable</div>
             )}

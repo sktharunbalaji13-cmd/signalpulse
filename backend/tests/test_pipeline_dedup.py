@@ -188,6 +188,9 @@ def test_full_pipeline_persists_duplicate_groups(session_factory, monkeypatch):
         source_type = "news"
         source_name = "DupNews"
 
+        def is_configured(self) -> bool:
+            return True
+
         async def search(self, query: str, params=None) -> list:
             from app.sources.base import SourceResult
 

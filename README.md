@@ -124,7 +124,7 @@ Linting: `ruff` across backend and eval. CI runs all suites plus the frontend Ty
 
 ## Current limitations
 
-- Reddit is implemented but disabled until credentials are configured; searches currently report `partial` because that source is unavailable.
+- Reddit is implemented but disabled until credentials are configured; it renders as a neutral "disabled" source and does not affect search status — searches over the enabled sources report `completed` ([ADR 0017](docs/ADR/0017-source-availability-semantics.md)).
 - Semantic ranking is implemented and measurably better offline, but disabled in production pending infrastructure with acceptable inference latency.
 - Recent-searches history is stored locally in your browser only (query labels never leave your device); there are no user accounts.
 - Single-process assumptions (in-memory rate limiting and caches) hold on the current single-worker deployment.

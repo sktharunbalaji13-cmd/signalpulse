@@ -326,12 +326,17 @@ async def _run_semantic_stage(
         return None, {"status": "failed", "error": type(exc).__name__, "ms": ms}
 
 async def run_search_job(search_id: str) -> None:
-    """Background job: run every enabled source concurrently, persist outcomes.
+    """Background job: run every *enabled* source concurrently, persist outcomes.
 
-    Uses ``asyncio.gather`` for true fan-out: each adapter runs in its own
-    session with isolated exceptions, so one source failing never cancels the
-    others. Overall status: completed (all ok) / partial (some ok) / failed
-    (none ok).
+    M21.3 (ADR 0017): sources that are not configured (``is_configured()`` is
+    False) are **disabled**, not failures. They are recorded as ``disabled``
+    source events, excluded from the fan-out, and excluded from the search
+    status computation. Status therefore describes the enabled sources only:
+    completed (all ok) / partial (some ok) / failed (none ok).
+
+    Uses ``asyncio.gather`` for true fan-out: each enabled adapter runs in its
+    own session with isolated exceptions, so one source failing never cancels
+    the others.
     """
     log_event("search_started", search_id=search_id)
     started = monotonic()
@@ -340,9 +345,31 @@ async def run_search_job(search_id: str) -> None:
         if search is None:
             log_event("search_failed", search_id=search_id, error="search row missing")
             return
+
+    enabled_names: list[str] = []
+    disabled: list[tuple[str, str]] = []  # (registry name, display name)
+    for name in sorted(registry.names()):
+        adapter = registry.get(name)
+        if adapter is None:
+            continue
+        if adapter.is_configured():
+            enabled_names.append(name)
+        else:
+            disabled.append((name, adapter.source_name))
+    if not enabled_names:
+        log_event("search_failed", search_id=search_id, error="no enabled sources")
+        with db_session.SessionLocal() as session:
+            search = session.get(Search, search_id)
+            if search is not None:
+                search.status = SearchStatus.FAILED.value
+                search.completed_at = utcnow()
+                search.duration_ms = int((monotonic() - started) * 1000)
+                session.commit()
+        return
+
     sources_started = monotonic()
     source_statuses = await asyncio.gather(
-        *(_run_source_with_timeout(search, name) for name in sorted(registry.names())),
+        *(_run_source_with_timeout(search, name) for name in enabled_names),
         return_exceptions=True,
     )
     sources_ms = int((monotonic() - sources_started) * 1000)
@@ -353,14 +380,27 @@ async def run_search_job(search_id: str) -> None:
             else status
             for index, status in enumerate(source_statuses)
         ]
+    for _name, display in disabled:
+        source_statuses.append({"name": display, "status": "disabled"})
 
     with db_session.SessionLocal() as session:
         search = session.get(Search, search_id)
         if search is None:
             log_event("search_failed", search_id=search_id, error="search row missing")
             return
-        failed = sum(1 for s in source_statuses if s["status"] != "success")
-        total_sources = len(source_statuses)
+        for _name, display in disabled:
+            session.add(
+                SourceEvent(
+                    search_id=search_id,
+                    source_name=display,
+                    status="disabled",
+                    error_type="disabled",
+                    error_message="source is not configured",
+                )
+            )
+            log_event("source_disabled", search_id=search_id, source=display)
+        failed = sum(1 for s in source_statuses if s["status"] not in ("success", "disabled"))
+        total_sources = sum(1 for s in source_statuses if s["status"] != "disabled")
         if failed == 0:
             status = SearchStatus.COMPLETED.value
         elif failed < total_sources:

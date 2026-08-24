@@ -82,7 +82,9 @@ function App() {
     search.filters.language !== ''
   const engineOnline = apiStatus === 'ok'
   const activeSources = search.sources.filter((s) => s.status === 'success').length
-  const partialCoverage = search.sources.some((s) => s.status !== 'success')
+  const partialCoverage = search.sources.some(
+    (s) => s.status !== 'success' && s.status !== 'disabled',
+  )
 
   function removeFilter(partial: Partial<Filters>) {
     search.setFilters(partial)

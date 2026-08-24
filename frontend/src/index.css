@@ -448,6 +448,15 @@ summary:focus-visible {
   border-left: 3px solid var(--err);
 }
 
+.srcsig--disabled {
+  border-left: 3px solid var(--border-strong);
+  opacity: 0.65;
+}
+
+.srcsig--disabled .srcsig__head {
+  color: var(--muted);
+}
+
 .srcsig__head {
   display: flex;
   align-items: center;
@@ -1489,6 +1498,10 @@ summary:focus-visible {
 
 .admin-table__err {
   color: var(--err);
+}
+
+.admin-table__muted {
+  color: var(--muted);
 }
 
 .admin-grid {

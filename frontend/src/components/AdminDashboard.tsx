@@ -203,6 +203,7 @@ export function AdminDashboard() {
                     <th>Source</th>
                     <th>Success</th>
                     <th>Failed</th>
+                    <th>Disabled</th>
                     <th>Avg latency</th>
                     <th>Avg yield</th>
                   </tr>
@@ -213,6 +214,7 @@ export function AdminDashboard() {
                       <td>{name}</td>
                       <td className="admin-table__ok">{s.success ?? 0}</td>
                       <td className={s.failed ? 'admin-table__err' : ''}>{s.failed ?? 0}</td>
+                      <td className="admin-table__muted">{s.disabled ?? 0}</td>
                       <td>{s.avg_latency_ms ? `${Math.round(s.avg_latency_ms)} ms` : '—'}</td>
                       <td>{s.avg_results ?? '—'}</td>
                     </tr>

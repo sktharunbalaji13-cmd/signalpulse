@@ -20,6 +20,7 @@ from app.schemas.search import (
 from app.services.filters import filter_conditions
 from app.services.rate_limit import enforce_create_limits
 from app.services.search_pipeline import run_search_job
+from app.sources.registry import registry
 
 router = APIRouter(tags=["searches"])
 
@@ -58,6 +59,14 @@ async def create_search(
     background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> SearchCreated:
+    # M21.3 (ADR 0017): a search needs at least one configured/enabled source.
+    # If every registered source is disabled, creating a search would be an
+    # empty operation - reject it rather than fabricate a result.
+    if not registry.has_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="No search sources are currently enabled.",
+        )
     search = Search(
         query=payload.query,
         normalized_query=normalize_query(payload.query),

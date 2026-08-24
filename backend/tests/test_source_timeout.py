@@ -33,6 +33,9 @@ class FakeAdapter:
         self._error = error
         self._kind = kind
 
+    def is_configured(self) -> bool:
+        return True
+
     async def search(self, query, params=None):
         if self._hang:
             await asyncio.sleep(1000)

@@ -40,6 +40,9 @@ class SourceEventStatus(StrEnum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     RATE_LIMITED = "rate_limited"
+    # M21.3 (ADR 0017): source is intentionally unavailable (e.g. missing
+    # credentials). Not a failure - excluded from search status computation.
+    DISABLED = "disabled"
 
 
 class Search(Base):

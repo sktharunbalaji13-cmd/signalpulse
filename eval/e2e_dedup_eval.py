@@ -54,6 +54,9 @@ class CorpusAdapter:
     def __init__(self, items) -> None:
         self._items = items
 
+    def is_configured(self) -> bool:
+        return True
+
     async def search(self, query: str, params=None) -> list:
         _load_backend()
         from app.sources.base import SourceResult  # noqa: PLC0415

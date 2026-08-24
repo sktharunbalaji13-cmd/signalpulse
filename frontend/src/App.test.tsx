@@ -340,6 +340,46 @@ describe('App', () => {
     expect(screen.getByText('Artificial intelligence')).toBeInTheDocument()
   })
 
+  it('renders a disabled source neutrally without a partial banner (M21.3)', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'completed',
+        result_count: 2,
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          { name: 'The Guardian', status: 'success', result_count: 8, latency_ms: 410, error_type: null, error: null },
+          { name: 'Hacker News', status: 'success', result_count: 5, latency_ms: 500, error_type: null, error: null },
+          {
+            name: 'Reddit',
+            status: 'disabled',
+            result_count: null,
+            latency_ms: null,
+            error_type: 'disabled',
+            error: 'source is not configured',
+          },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 2,
+      page: 1,
+      per_page: 20,
+      items: [makeResult(), makeResult({ source_name: 'The Guardian', title: 'G2' })],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(await screen.findByText(/○ Reddit/, {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText('disabled')).toBeInTheDocument()
+    // Disabled is not a failure: no partial-coverage banner.
+    expect(screen.queryByText(/Partial Source Coverage/i)).not.toBeInTheDocument()
+    // All healthy enabled sources still render normally.
+    expect(screen.getByText(/✓ Wikipedia/)).toBeInTheDocument()
+  })
+
   it('restores a previous search from the shareable URL', async () => {
     window.history.pushState({}, '', '/?s=old-search')
     mockedApi.getSearch.mockResolvedValue(

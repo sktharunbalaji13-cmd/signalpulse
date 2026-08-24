@@ -68,6 +68,9 @@ class FakeAdapter:
         self._count = count
         self._error = error
 
+    def is_configured(self) -> bool:
+        return True
+
     async def search(self, query, params=None):
         _load_backend()
         from app.sources.base import SourceError, SourceResult

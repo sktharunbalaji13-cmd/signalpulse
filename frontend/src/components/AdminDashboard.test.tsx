@@ -37,7 +37,7 @@ function sampleStats(window = '7d') {
     sources: {
       Wikipedia: { success: 12, failed: 0, avg_latency_ms: 600, avg_results: 10 },
       'Hacker News': { success: 12, failed: 0, avg_latency_ms: 800, avg_results: 10 },
-      Reddit: { success: 0, failed: 12, avg_latency_ms: 200, avg_results: 0 },
+      Reddit: { success: 0, failed: 0, disabled: 12, avg_latency_ms: 200, avg_results: 0 },
     },
     dedup: { total_groups: 3, duplicates_removed: 5 },
     semantic: { disabled: 12, searches_with_stage: 12, avg_ms: null, note: 'dormant' },
@@ -66,6 +66,8 @@ describe('AdminDashboard', () => {
     expect(screen.getByText(/30 days/)).toBeInTheDocument()
     expect(screen.getByText(/EXPERIMENTAL — DORMANT/)).toBeInTheDocument()
     expect(screen.getByText('Reddit')).toBeInTheDocument()
+    // M21.3: the disabled column is present and populated.
+    expect(screen.getByText('Disabled')).toBeInTheDocument()
   })
 
   it('logs in with a key then loads stats', async () => {
