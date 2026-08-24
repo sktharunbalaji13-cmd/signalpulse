@@ -58,7 +58,7 @@ Detailed component documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - **Annotate-don't-delete deduplication** — duplicate clusters are detected (canonical URL, normalized title, fuzzy match), grouped with evidence, and marked; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)).
 - **C4 ranking** — relevance, freshness, quality, and diversity signals composed into a deterministic total order, persisted per result.
 - **Query-time filters** — source type, time window, canonical-only, and language views over persisted rankings without re-ranking.
-- **Operational observability** — authenticated aggregate statistics: search volume, latency percentiles, per-source outcomes, dedup metrics, top normalized queries.
+- **Operational observability** — authenticated aggregate statistics: search volume, latency percentiles, per-source outcomes, dedup metrics, top normalized queries. A protected admin dashboard (`#/admin`) renders this telemetry via a short-lived HttpOnly session cookie — the admin key never enters the browser ([ADR 0016](docs/ADR/0016-admin-observability-dashboard.md)).
 - **Data lifecycle** — searches older than 30 days are deleted automatically (batched, transactional, dependency-safe); operators can purge a specific search or all expired records via authenticated endpoints.
 
 ## Research & evaluation
@@ -80,7 +80,7 @@ The NO-GOs are deliberate outcomes of the evidence process, not unfinished work.
 ## Security & privacy
 
 - No user accounts; the service is anonymous by design. No IPs, sessions, or identifiers are stored.
-- **Admin surface** (`/api/v1/admin/stats`, purge endpoints) requires an `X-Admin-Key` header checked with a constant-time comparison; it fails closed when unconfigured.
+- **Admin surface** (`/api/v1/admin/stats`, purge endpoints) requires an `X-Admin-Key` header checked with a constant-time comparison; it fails closed when unconfigured. The admin dashboard authenticates by exchanging the key once for a short-lived HttpOnly cookie — the key never reaches browser code or storage.
 - **Retention:** searches and their dependent rows persist for 30 days (`searches.created_at` clock), then are deleted automatically in FK-safe, transactional batches. Operators can purge immediately ([ADR 0013](docs/ADR/0013-data-retention-policy.md)).
 - Request logging records method, path, status, and latency only — never query text, headers, or secrets.
 - See [docs/PRIVACY.md](docs/PRIVACY.md) for what is stored and why.

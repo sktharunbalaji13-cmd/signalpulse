@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { api } from './api/client'
+import { AdminDashboard } from './components/AdminDashboard'
 import { EmptyState } from './components/EmptyState'
 import { FilterBar } from './components/FilterBar'
 import { Footer } from './components/Footer'
@@ -25,6 +26,15 @@ function App() {
   const search = useSearch()
   const [apiStatus, setApiStatus] = useState('checking…')
   const [retryInSeconds, setRetryInSeconds] = useState(0)
+  // M20.1: hash-based admin workspace route (no router dependency), mirroring
+  // the existing ?s= deep-link convention.
+  const [isAdmin, setIsAdmin] = useState(() => window.location.hash === '#/admin')
+
+  useEffect(() => {
+    const onHashChange = () => setIsAdmin(window.location.hash === '#/admin')
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   useEffect(() => {
     api
@@ -82,15 +92,29 @@ function App() {
     <>
       <header className="topbar">
         <span className="topbar__brand">SIGNALPULSE</span>
-        <span className="status-pill" role="status">
-          <span
-            className={`status-dot ${engineOnline ? 'status-dot--pulse' : 'status-dot--offline'}`}
-            aria-hidden="true"
-          />
-          {engineOnline ? 'Engine online' : 'Engine offline'}
+        <span className="topbar__right">
+          {!isAdmin && (
+            <a className="admin-link" href="#/admin">
+              Admin
+            </a>
+          )}
+          <span className="status-pill" role="status">
+            <span
+              className={`status-dot ${engineOnline ? 'status-dot--pulse' : 'status-dot--offline'}`}
+              aria-hidden="true"
+            />
+            {engineOnline ? 'Engine online' : 'Engine offline'}
+          </span>
         </span>
       </header>
 
+      {isAdmin ? (
+        <main className="app">
+          <div className="workspace-header">
+            <AdminDashboard />
+          </div>
+        </main>
+      ) : (
       <main className="app">
         <section className="workspace-header" aria-label="Intelligence workspace">
           <p className="eyebrow">Intelligence Workspace</p>
@@ -366,7 +390,7 @@ function App() {
           </aside>
         )}
       </main>
-
+      )}
       <Footer />
     </>
   )

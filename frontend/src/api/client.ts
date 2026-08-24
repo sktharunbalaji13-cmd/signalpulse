@@ -61,6 +61,20 @@ export type ResultsOptions = {
   language?: string
 }
 
+export type AdminWindow = '24h' | '7d' | '30d'
+
+export type AdminStatsResponse = {
+  window: string
+  generated_at: string
+  retention: { days: number; clock: string; note: string }
+  searches: { total: number; by_status: Record<string, number> }
+  latency_ms: { p50: number | null; p95: number | null; p99: number | null }
+  sources: Record<string, Record<string, number>>
+  dedup: { total_groups: number; duplicates_removed: number }
+  semantic: Record<string, number | string | null>
+  queries: { empty_result_count: number; privacy_note: string }
+}
+
 export class ApiError extends Error {
   readonly status: number
 
@@ -74,6 +88,9 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    // M20.1: admin dashboard auth flows via an HttpOnly cookie, so the fetch
+    // must carry cookies cross-origin. Harmless for the public API.
+    credentials: 'include',
     ...init,
   })
   if (!response.ok) {
@@ -85,6 +102,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getHealth(): Promise<HealthResponse> {
     return request('/api/v1/health')
+  },
+
+  /** M20.1: exchange the admin key for an HttpOnly session cookie. */
+  adminLogin(adminKey: string): Promise<{ ok: boolean }> {
+    return request('/api/v1/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+    })
+  },
+
+  adminLogout(): Promise<{ ok: boolean }> {
+    return request('/api/v1/admin/logout', { method: 'POST' })
+  },
+
+  getAdminStats(window: AdminWindow): Promise<AdminStatsResponse> {
+    return request(`/api/v1/admin/stats?window=${window}`)
   },
 
   createSearch(query: string, windowHours?: number): Promise<SearchCreated> {

@@ -37,8 +37,14 @@ class Settings(BaseSettings):
     semantic_model_dir: str = "models/minilm-int8"
 
     # M4 production CORS (design M4 §7): exact allow-list of frontend origins;
-    # credentials are off for the public API.
-    cors_allow_credentials: bool = False
+    # credentials are enabled for the M20.1 admin dashboard cookie flow.
+    cors_allow_credentials: bool = True
+
+    # M20.1 admin dashboard session (HttpOnly cookie): a short-lived in-memory
+    # token issued by POST /admin/login when the X-Admin-Key header is valid.
+    # The original ADMIN_API_KEY never leaves the server.
+    admin_session_ttl_seconds: float = 900.0
+    admin_cookie_secure: bool = True
 
     # M4 in-process rate limiting + in-flight protection (design M4 §12).
     # Per-client-IP sliding window on POST /searches and a global cap on the

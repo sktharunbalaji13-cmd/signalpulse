@@ -5,6 +5,7 @@ from time import perf_counter
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -17,6 +18,12 @@ from app.core.logging import log_event
 from app.db.models import Base
 from app.db.session import engine, get_session
 from app.schemas.search import AdminPurgeResponse
+from app.services.admin_session import (
+    COOKIE_NAME,
+    cookie_attributes,
+    issue_token,
+    validate_token,
+)
 from app.services.retention import (
     purge_expired,
     purge_search,
@@ -82,12 +89,43 @@ def create_app() -> FastAPI:
         if not expected or not secrets.compare_digest(provided, expected):
             raise HTTPException(status_code=401, detail="Admin authentication required")
 
+    def _verify_admin(request: Request) -> None:
+        """M20.1 (ADR 0016): accept the original X-Admin-Key header (API use)
+        OR a valid admin-session cookie (dashboard use). Fails closed."""
+        provided = request.headers.get("x-admin-key", "")
+        expected = settings.admin_api_key
+        key_ok = bool(expected) and secrets.compare_digest(provided, expected)
+        cookie_ok = validate_token(request.cookies.get(COOKIE_NAME))
+        if not (key_ok or cookie_ok):
+            raise HTTPException(status_code=401, detail="Admin authentication required")
+
+    def admin_login_endpoint(request: Request) -> JSONResponse:
+        """M20.1: exchange a valid X-Admin-Key for a short-lived HttpOnly cookie.
+
+        The real ADMIN_API_KEY is validated here and never returned or stored;
+        the response carries only the session cookie (SameSite=None; Secure).
+        """
+        _verify_admin_key(request)
+        token = issue_token()
+        response = JSONResponse({"ok": True})
+        response.set_cookie(**cookie_attributes(secure=request.url.scheme == "https"), value=token)
+        return response
+
+    def admin_logout_endpoint(request: Request) -> JSONResponse:
+        """M20.1: drop the admin session cookie."""
+        from app.services.admin_session import revoke_token
+
+        revoke_token(request.cookies.get(COOKIE_NAME))
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(COOKIE_NAME, path="/api/v1/admin")
+        return response
+
     def admin_stats_endpoint(
         request: Request,
         window: str = "7d",
         session: Session = Depends(get_session),  # noqa: B008
     ):
-        _verify_admin_key(request)
+        _verify_admin(request)
         try:
             validate_window(window)
         except ValueError as exc:
@@ -108,7 +146,7 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),  # noqa: B008
     ) -> AdminPurgeResponse:
         """M15.1: purge one search and its dependent rows (admin-only)."""
-        _verify_admin_key(request)
+        _verify_admin(request)
         counts = purge_search(session, search_id)
         if counts is None:
             raise HTTPException(status_code=404, detail="Search not found")
@@ -119,7 +157,7 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),  # noqa: B008
     ) -> AdminPurgeResponse:
         """M15.1: purge every search older than the retention cutoff."""
-        _verify_admin_key(request)
+        _verify_admin(request)
         cutoff = retention_cutoff()
         try:
             counts = purge_expired(session, cutoff=cutoff)
@@ -140,6 +178,21 @@ def create_app() -> FastAPI:
         methods=["POST"],
         tags=["admin"],
         name="admin_purge_expired",
+    )
+
+    app.add_api_route(
+        "/api/v1/admin/login",
+        admin_login_endpoint,
+        methods=["POST"],
+        tags=["admin"],
+        name="admin_login",
+    )
+    app.add_api_route(
+        "/api/v1/admin/logout",
+        admin_logout_endpoint,
+        methods=["POST"],
+        tags=["admin"],
+        name="admin_logout",
     )
 
     return app
