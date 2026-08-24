@@ -2,7 +2,19 @@
 
 **Real-time multi-source information intelligence — news, reference and social results, ranked and de-duplicated in one place.**
 
-SignalPulse runs one query across independent sources in parallel, removes duplicates, ranks the surviving signals, and serves them through a small API and workspace UI. It is a working production system: deployed, monitored, authenticated, rate-limited, and governed by an explicit data-retention policy.
+**🟢 [Try the live demo](https://signalpulse-frontend.onrender.com)** — one query fans out to Wikipedia, The Guardian and Hacker News in parallel; results are deduplicated, ranked, and attributed per source.
+
+![SignalPulse search results with per-source attribution](docs/assets/results.png)
+
+SignalPulse runs one query across independent sources at the same time, removes duplicates, ranks the surviving signals, and serves them through a small API and workspace UI. It is a working production system: deployed, monitored, authenticated, rate-limited, and governed by an explicit data-retention policy.
+
+## Screenshots
+
+| Landing workspace | Authenticated operations dashboard |
+|---|---|
+| ![Landing](docs/assets/landing.png) | ![Admin observability dashboard](docs/assets/admin-dashboard.png) |
+
+The dashboard renders live production telemetry (search volume, latency percentiles, per-source health, dedup, retention) behind a short-lived HttpOnly session — the admin key never enters the browser.
 
 ## Why SignalPulse?
 
@@ -53,6 +65,7 @@ Detailed component documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Key capabilities
 
+- **Measured in production** — p95 search latency **1.59 s** (24 h window, multi-source fan-out); zero empty-result searches across all traffic; ~0.3 % duplicate rate over ~2,500 ranked results.
 - **One query, three source classes** — reference, news, and social results normalized into a single `SourceResult` contract with full raw-payload provenance.
 - **Honest failure handling** — each source is isolated with its own timeout (4.5 s) and database session; one failing source degrades the search to `partial` instead of failing everything.
 - **Annotate-don't-delete deduplication** — duplicate clusters are detected (canonical URL, normalized title, fuzzy match), grouped with evidence, and marked; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)).
