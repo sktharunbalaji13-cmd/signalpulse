@@ -114,7 +114,7 @@ class GitHubAdapter(BaseSourceAdapter):
         client = self._client or httpx.AsyncClient()
         try:
             response = await client.get(
-                settings.github_api_url,
+                settings.github_search_url,
                 params=request_params,
                 headers=self._headers(),
                 timeout=settings.github_timeout_seconds,

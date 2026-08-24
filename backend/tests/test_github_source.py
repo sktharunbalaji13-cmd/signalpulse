@@ -155,13 +155,17 @@ class TestGitHubAdapter:
 
         assert GitHubAdapter().is_configured() is False
 
-    def test_actions_ambient_token_is_not_adopted(self, monkeypatch):
-        """GitHub Actions injects its own GITHUB_TOKEN into every job; our
-        differently-named setting must never pick it up (CI-caught bug)."""
+    def test_actions_ambient_vars_are_not_adopted(self, monkeypatch):
+        """GitHub Actions injects GITHUB_TOKEN *and* GITHUB_API_URL into every
+        job; our differently-named settings must never pick them up
+        (both caught red-handed by CI)."""
         from app.core.config import Settings
 
         monkeypatch.setenv("GITHUB_TOKEN", "ambient-actions-token")
-        assert Settings().github_api_token == ""
+        monkeypatch.setenv("GITHUB_API_URL", "https://ambient.example")
+        fresh = Settings()
+        assert fresh.github_api_token == ""
+        assert fresh.github_search_url == "https://api.github.com/search/repositories"
 
 
 class TestCodeRankingConstants:

@@ -99,10 +99,10 @@ class Settings(BaseSettings):
     # M22.2 GitHub adapter (ADR 0019): REST repository search with a backend-
     # held fine-grained PAT (zero extra scopes; public read is implicit).
     # Empty token -> source reports disabled (M21.3 semantics), never failure.
-    # Named GITHUB_API_TOKEN deliberately: GitHub Actions injects its own
-    # ambient GITHUB_TOKEN into every job, which pydantic would otherwise
-    # silently adopt as our credential.
-    github_api_url: str = "https://api.github.com/search/repositories"
+    # Names deliberately avoid GitHub Actions' ambient variables: Actions
+    # injects GITHUB_TOKEN *and* GITHUB_API_URL into every job, which
+    # pydantic-settings would otherwise silently adopt as ours.
+    github_search_url: str = "https://api.github.com/search/repositories"
     github_api_token: str = ""
     github_timeout_seconds: float = 5.0
     github_max_results: int = 10
