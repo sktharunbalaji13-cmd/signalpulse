@@ -15,9 +15,11 @@ class GitHubAdapter(BaseSourceAdapter):
     ``sort`` parameter - stars/popularity are NOT ranking inputs).
 
     Credential model: a backend-held fine-grained PAT with zero extra scopes
-    (public read-only is implicit). Without ``GITHUB_TOKEN`` the source
+    (public read-only is implicit). Without ``GITHUB_API_TOKEN`` the source
     reports itself unconfigured and the pipeline treats it as *disabled*
-    (M21.3 semantics) - never as a failure.
+    (M21.3 semantics) - never as a failure. (The env var deliberately avoids
+    the name ``GITHUB_TOKEN``, which GitHub Actions injects into every CI
+    job it runs.)
 
     Time-window semantics: requested windows are pushed server-side via the
     ``pushed:>`` search qualifier so GitHub never returns rows we would
@@ -36,7 +38,7 @@ class GitHubAdapter(BaseSourceAdapter):
         self._client = client
 
     def is_configured(self) -> bool:
-        return bool(settings.github_token)
+        return bool(settings.github_api_token)
 
     def _build_params(
         self, query: str, limit: int, window_hours: int | None
@@ -52,8 +54,8 @@ class GitHubAdapter(BaseSourceAdapter):
             "Accept": "application/vnd.github+json",
             "User-Agent": settings.github_user_agent,
         }
-        if settings.github_token:
-            headers["Authorization"] = f"Bearer {settings.github_token}"
+        if settings.github_api_token:
+            headers["Authorization"] = f"Bearer {settings.github_api_token}"
         return headers
 
     def _parse_results(self, payload: dict) -> list[SourceResult]:

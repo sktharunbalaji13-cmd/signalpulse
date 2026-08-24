@@ -21,6 +21,9 @@ def clean_secrets(monkeypatch):
     monkeypatch.setattr(settings, "guardian_api_key", "")
     monkeypatch.setattr(settings, "reddit_client_id", "")
     monkeypatch.setattr(settings, "reddit_client_secret", "")
+    # M22.2: GitHub Actions injects its own ambient GITHUB_TOKEN into CI jobs;
+    # our differently-named setting must still start blank in every test.
+    monkeypatch.setattr(settings, "github_api_token", "")
 
 
 @pytest.fixture(autouse=True)

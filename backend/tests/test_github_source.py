@@ -48,7 +48,7 @@ def reddit_creds(monkeypatch):
 
 @pytest.fixture()
 def github_token(monkeypatch):
-    monkeypatch.setattr(settings, "github_token", "test-token")
+    monkeypatch.setattr(settings, "github_api_token", "test-token")
 
 
 class TestGitHubAdapter:
@@ -154,6 +154,14 @@ class TestGitHubAdapter:
         from app.sources.github import GitHubAdapter
 
         assert GitHubAdapter().is_configured() is False
+
+    def test_actions_ambient_token_is_not_adopted(self, monkeypatch):
+        """GitHub Actions injects its own GITHUB_TOKEN into every job; our
+        differently-named setting must never pick it up (CI-caught bug)."""
+        from app.core.config import Settings
+
+        monkeypatch.setenv("GITHUB_TOKEN", "ambient-actions-token")
+        assert Settings().github_api_token == ""
 
 
 class TestCodeRankingConstants:
@@ -286,7 +294,7 @@ class TestPipelineIntegration:
 
     @pytest.fixture()
     def no_token(self, monkeypatch):
-        monkeypatch.setattr(settings, "github_token", "")
+        monkeypatch.setattr(settings, "github_api_token", "")
 
 
 class TestFilterAllowList:

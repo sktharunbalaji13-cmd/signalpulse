@@ -67,7 +67,7 @@ search, never a hung search.
 
 ## Consequences
 
-- Five enabled sources once `GITHUB_TOKEN` is configured (+ Reddit dormant);
+- Five enabled sources once `GITHUB_API_TOKEN` is configured (+ Reddit dormant);
   without the token GitHub reports neutral `disabled` and searches stay
   `completed` (M21.3 semantics).
 - Engineering queries gain an evidence class no other source provides.
