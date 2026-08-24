@@ -89,6 +89,13 @@ class Settings(BaseSettings):
     hacker_news_max_results: int = 10
     hacker_news_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
 
+    # M22.1 arXiv adapter (ADR 0018): keyless Atom export API. arXiv's courtesy
+    # budget is ~1 request / 3 s; SignalPulse issues one request per search.
+    arxiv_api_url: str = "https://export.arxiv.org/api/query"
+    arxiv_timeout_seconds: float = 5.0
+    arxiv_max_results: int = 10
+    arxiv_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

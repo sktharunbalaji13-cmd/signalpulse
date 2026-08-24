@@ -32,11 +32,17 @@ from datetime import UTC, datetime
 
 NEWS_HALF_LIFE_HOURS = 24.0
 SOCIAL_HALF_LIFE_HOURS = 12.0
+# M22.1 (ADR 0018): research literature decays far slower than news but is
+# not timeless like reference works - fast-moving preprint fields are triaged
+# by recency on a ~monthly horizon. Design constant, not corpus-validated
+# (the frozen corpus carries no research judgments); it affects research rows
+# only and is revisable by future experiments.
+RESEARCH_HALF_LIFE_HOURS = 24.0 * 30.0
 FRESHNESS_FLOOR = 0.05
 MISSING_TIMESTAMP_SCORE = 0.25
 REFERENCE_FRESHNESS = 0.5
 
-_SOURCE_TYPES = frozenset({"news", "social", "reference"})
+_SOURCE_TYPES = frozenset({"news", "social", "reference", "research"})
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -81,5 +87,9 @@ def freshness_score(
 
     instant = _as_utc(now) if now is not None else datetime.now(UTC)
     age_hours = max(0.0, (instant - _as_utc(published_at)).total_seconds() / 3600.0)
-    half_life = NEWS_HALF_LIFE_HOURS if source_type == "news" else SOCIAL_HALF_LIFE_HOURS
+    half_life = {
+        "news": NEWS_HALF_LIFE_HOURS,
+        "social": SOCIAL_HALF_LIFE_HOURS,
+        "research": RESEARCH_HALF_LIFE_HOURS,
+    }[source_type]
     return _decay(age_hours, half_life)

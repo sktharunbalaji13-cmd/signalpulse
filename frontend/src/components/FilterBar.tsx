@@ -8,7 +8,7 @@ type FilterBarProps = {
   onChange: (next: Partial<Filters>) => void
 }
 
-const SOURCE_TYPES = ['news', 'social', 'reference'] as const
+const SOURCE_TYPES = ['news', 'social', 'reference', 'research'] as const
 const TIME_OPTIONS = ['24h', '7d', '30d', 'all'] as const
 const DUPLICATE_OPTIONS = ['all', 'canonical'] as const
 const LANGUAGE_RE = /^[a-z]{0,3}$/

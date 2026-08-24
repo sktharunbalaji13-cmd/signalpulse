@@ -1,6 +1,6 @@
 # SignalPulse Roadmap
 
-Status: **post-M21.3**. Everything below marked ✅ is shipped and deployed;
+Status: **post-M22.1**. Everything below marked ✅ is shipped and deployed;
 items under *Next* / *Deferred* are **planned, not implemented**.
 
 ## Completed milestones
@@ -27,6 +27,8 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M20.1 | Admin observability dashboard + HttpOnly session boundary | Protected `#/admin` dashboard over existing `/admin/stats`; admin key never enters the browser; CSS-only visuals, manual refresh only ([ADR 0016](ADR/0016-admin-observability-dashboard.md)) |
 | M21.1 | Presentation & portfolio credibility | Live-demo CTA, real production screenshots, measured-metrics bullet, GitHub homepage + topics |
 | M21.3 | Source availability semantics — "disabled" is not a failure | Unconfigured sources render neutrally and are excluded from status; searches read `completed` over enabled sources; credential transition auto-re-enables ([ADR 0017](ADR/0017-source-availability-semantics.md)) |
+| M22.0 | Source-expansion feasibility audit | 9 candidates classified GO / CONDITIONAL / NO-GO / externally blocked with verified API economics; ranking-gate rule adopted: new source type → corpus evidence → production |
+| M22.1 | arXiv research source + new `research` type | Live gate: 6/6 success, p50 0.95 s; one cross-source title collision handled by dedup; corpus rankings bit-identical; quality 0.75, weights (0.60/0.20/0.20), 30-day freshness half-life ([ADR 0018](ADR/0018-arxiv-research-source.md)) |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus
@@ -34,13 +36,24 @@ and harness remain the gate for any future ranking change.
 
 ## Next
 
-### M17 — Reddit Activation & Multi-Source Completeness *(planned — blocked externally)*
+The M22 multi-source expansion program proceeds one gated source at a time
+(audit → adapter → corpus evidence → live measurement → production):
+
+### M22.2 — GitHub *(planned)*
+Code/engineering source via the free REST search API with a backend-held PAT.
+
+### M22.3 — Stack Overflow *(planned — requires free API key)*
+Developer Q&A; 10,000 req/day with a registered key (300/day without).
+
+### M22.4 — Bluesky / M22.5 — Semantic Scholar *(planned)*
+Bluesky fills the public-social class while Reddit is blocked (keyless
+single-page search; pagination drift risk). Semantic Scholar is gated on
+measuring arXiv↔S2 duplicate overlap after both exist.
+
+### Reddit activation *(blocked externally)*
 Enable the implemented Reddit adapter by configuring OAuth credentials.
-Restores the social source class and removes today's misleading
-`partial` status on every search. M17.0 audited the adapter production-ready
-(no code changes required); activation is **blocked solely on Reddit API
-access approval**. Verification protocol is ready to run the moment
-credentials land.
+M21.3 already made it render neutrally as `disabled`; activation is
+**blocked solely on Reddit API access approval**.
 
 ## Deferred
 
@@ -52,8 +65,7 @@ credentials land.
 - **User accounts** — anonymous model is deliberate; accounts would be
   over-engineering for current goals.
 - **Alerting / on-call tooling** — no uptime commitments yet.
-- **Additional sources** — adapter contract makes them cheap to add, but only
-  when a concrete information need appears.
+- **Further sources beyond M22** — the adapter contract makes them cheap to add, but only when a concrete information need appears; every new *source type* additionally passes the ranking-evidence gate.
 - **Scaling work** — multi-worker rate limiting/dedup caches, admin-stats SQL
   aggregation — all fine at current volume (~50 searches/day).
 

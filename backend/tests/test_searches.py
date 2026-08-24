@@ -6,6 +6,8 @@ from app.core.config import settings
 from app.db.models import Result, Search, SourceEvent
 from app.sources.wikipedia import WIKIPEDIA_API_URL
 from tests.helpers import (
+    mock_arxiv_empty,
+    mock_arxiv_timeout,
     mock_guardian_empty,
     mock_hacker_news_empty,
     mock_hacker_news_timeout,
@@ -89,6 +91,7 @@ def test_background_success_becomes_completed(client, guardian_key, reddit_creds
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "completed"
@@ -100,6 +103,7 @@ def test_results_persisted(client, session_factory, guardian_key):
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}/results").json()
     assert body["total"] == 2
@@ -120,10 +124,11 @@ def test_source_events_persisted(client, session_factory, guardian_key, reddit_c
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     with session_factory() as session:
         events = session.query(SourceEvent).filter_by(search_id=search_id).all()
-        assert len(events) == 4
+        assert len(events) == 5
         wikipedia_event = next(e for e in events if e.source_name == "Wikipedia")
         assert wikipedia_event.status == "success"
         assert wikipedia_event.result_count == 2
@@ -146,6 +151,7 @@ def test_completed_at_populated(client, guardian_key, reddit_creds):
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["completed_at"] is not None
@@ -157,6 +163,7 @@ def test_duration_ms_populated(client, guardian_key, reddit_creds):
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["duration_ms"] is not None
@@ -170,6 +177,7 @@ def test_duration_ms_populated(client, guardian_key, reddit_creds):
 def test_timeout_marks_search_failed(client):
     mock_wikipedia_timeout()
     mock_hacker_news_timeout()
+    mock_arxiv_timeout()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "failed"
@@ -182,6 +190,7 @@ def test_timeout_marks_search_failed(client):
 def test_rate_limited_marks_search_failed(client):
     mock_wikipedia_rate_limited()
     mock_hacker_news_timeout()
+    mock_arxiv_timeout()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "failed"
@@ -192,6 +201,7 @@ def test_rate_limited_marks_search_failed(client):
 def test_malformed_response_marks_search_failed(client):
     mock_wikipedia_malformed()
     mock_hacker_news_timeout()
+    mock_arxiv_timeout()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["status"] == "failed"
@@ -207,6 +217,7 @@ def test_get_existing_search(client, guardian_key, reddit_creds):
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["search_id"] == search_id
@@ -227,6 +238,7 @@ def test_completed_search_reports_result_count(client, guardian_key, reddit_cred
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}").json()
     assert body["result_count"] == 2
@@ -241,6 +253,7 @@ def test_results_returned_correctly(client, guardian_key, reddit_creds):
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     search_id = create_search(client)
     body = client.get(f"/api/v1/searches/{search_id}/results").json()
     assert body["total"] == 2
@@ -298,6 +311,7 @@ def test_history_newest_first(client, guardian_key, reddit_creds):
     mock_guardian_empty()
     mock_reddit_empty()
     mock_hacker_news_empty()
+    mock_arxiv_empty()
     first = create_search(client, query="first query")
     second = create_search(client, query="second query")
     third = create_search(client, query="third query")

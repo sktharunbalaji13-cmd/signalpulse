@@ -11,11 +11,12 @@ and reproduced bit-for-bit by the eval tests):
   search;
 * freshness: the M3-C production scorer (``app.services.freshness``);
 * quality: design Â§5 constants (Guardian 0.90, Wikipedia 0.80, Reddit 0.50,
-  "Global Wire" 0.85 documented placeholder, unknown 0.50);
-* weights: news/social (0.55, 0.30, 0.15), reference (0.65, 0.10, 0.25);
+  arXiv 0.75, "Global Wire" 0.85 documented placeholder, unknown 0.50);
+* weights: news/social (0.55, 0.30, 0.15), reference (0.65, 0.10, 0.25),
+  research (0.60, 0.20, 0.20);
 * diversity: within a Â±0.05 score band, source types alternate round-robin;
-* total order: score desc, source-type priority (news < social < reference),
-  published_at desc (None last), URL lexicographic;
+* total order: score desc, source-type priority (news < social < reference <
+  research), published_at desc (None last), URL lexicographic;
 * duplicate awareness: members of a duplicate group inherit the canonical
   member's score (canonical = the member with ``is_duplicate`` False); the
   canonical's fields drive the group score, members keep their own
@@ -39,18 +40,24 @@ BAND_WIDTH = 0.05
 SOURCE_QUALITY = {
     "The Guardian": 0.90,
     "Wikipedia": 0.80,
+    "arXiv": 0.75,  # M22.1: moderated preprint repository (not peer-reviewed)
     "Global Wire": 0.85,  # corpus-only placeholder (no real second news source yet)
 }
 SOCIAL_QUALITY = 0.50
 REFERENCE_QUALITY = 0.80
+RESEARCH_QUALITY = 0.75
 UNKNOWN_QUALITY = 0.50
 
-TYPE_PRIORITY = {"news": 0, "social": 1, "reference": 2}
+TYPE_PRIORITY = {"news": 0, "social": 1, "reference": 2, "research": 3}
 
 WEIGHTS = {
     "news": (0.55, 0.30, 0.15),
     "social": (0.55, 0.30, 0.15),
     "reference": (0.65, 0.10, 0.25),
+    # M22.1 (ADR 0018): between news and reference - relevance dominates,
+    # freshness carries real weight (papers have genuine dates and recency
+    # matters in fast-moving fields), quality moderate.
+    "research": (0.60, 0.20, 0.20),
 }
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -105,6 +112,8 @@ def source_quality(source_type: str, source_name: str) -> float:
         return REFERENCE_QUALITY
     if source_type == "social":
         return SOCIAL_QUALITY
+    if source_type == "research":
+        return RESEARCH_QUALITY
     return UNKNOWN_QUALITY
 
 

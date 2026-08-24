@@ -13,11 +13,17 @@ REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 REDDIT_SEARCH_URL = "https://oauth.reddit.com/search"
 GDELT_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 HACKER_NEWS_API_URL = "https://hn.algolia.com/api/v1/search"
+ARXIV_API_URL = "https://export.arxiv.org/api/query"
 
 
 def load_fixture(name: str) -> dict:
     with (FIXTURES / name).open(encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_fixture_text(name: str) -> str:
+    with (FIXTURES / name).open(encoding="utf-8") as f:
+        return f.read()
 
 
 def mock_wikipedia_success() -> None:
@@ -148,4 +154,30 @@ def mock_hacker_news_timeout() -> None:
         side_effect=httpx.ConnectTimeout(
             "timeout", request=httpx.Request("GET", HACKER_NEWS_API_URL)
         )
+    )
+
+
+ARXIV_EMPTY_FEED = (
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<feed xmlns="http://www.w3.org/2005/Atom">'
+    "<title>ArXiv Query</title>"
+    '<opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">0'
+    "</opensearch:totalResults>"
+    "</feed>"
+)
+
+
+def mock_arxiv_success() -> None:
+    respx.get(ARXIV_API_URL).mock(
+        return_value=httpx.Response(200, text=load_fixture_text("arxiv_search_success.xml"))
+    )
+
+
+def mock_arxiv_empty() -> None:
+    respx.get(ARXIV_API_URL).mock(return_value=httpx.Response(200, text=ARXIV_EMPTY_FEED))
+
+
+def mock_arxiv_timeout() -> None:
+    respx.get(ARXIV_API_URL).mock(
+        side_effect=httpx.ConnectTimeout("timeout", request=httpx.Request("GET", ARXIV_API_URL))
     )

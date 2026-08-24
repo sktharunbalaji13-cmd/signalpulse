@@ -710,6 +710,12 @@ summary:focus-visible {
   background: var(--err-bg);
 }
 
+.chip--research {
+  color: #c792ea;
+  border-color: rgba(199, 146, 234, 0.4);
+  background: rgba(199, 146, 234, 0.12);
+}
+
 .chip--duplicate {
   color: var(--muted);
   text-transform: none;

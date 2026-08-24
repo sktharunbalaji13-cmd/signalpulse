@@ -125,7 +125,7 @@ async def get_search_results(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 20,
     source_type: Annotated[
-        list[Literal["news", "social", "reference"]] | None, Query()
+        list[Literal["news", "social", "reference", "research"]] | None, Query()
     ] = None,
     time: Annotated[Literal["24h", "7d", "30d", "all"], Query()] = "all",
     duplicates: Annotated[Literal["all", "canonical"], Query()] = "all",

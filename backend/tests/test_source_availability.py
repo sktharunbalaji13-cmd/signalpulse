@@ -15,6 +15,8 @@ from app.db.models import SourceEvent
 from app.sources.registry import registry
 from tests.helpers import (
     HACKER_NEWS_API_URL,
+    mock_arxiv_empty,
+    mock_arxiv_timeout,
     mock_guardian_empty,
     mock_hacker_news_empty,
     mock_hacker_news_success,
@@ -79,6 +81,7 @@ class TestDisabledSourceSemantics:
         mock_wikipedia_success()
         mock_guardian_empty()
         mock_hacker_news_empty()
+        mock_arxiv_empty()
         search_id = _make_search(client)
         assert _status(client, search_id) == "completed"
         sources = _sources(client, search_id)
@@ -95,6 +98,7 @@ class TestDisabledSourceSemantics:
         mock_wikipedia_success()
         mock_guardian_empty()
         mock_hacker_news_empty()
+        mock_arxiv_empty()
         search_id = _make_search(client)
         with session_factory() as session:
             events = session.query(SourceEvent).filter_by(search_id=search_id).all()
@@ -103,6 +107,7 @@ class TestDisabledSourceSemantics:
                 "The Guardian",
                 "Hacker News",
                 "Reddit",
+                "arXiv",
             }
             reddit = next(e for e in events if e.source_name == "Reddit")
             assert reddit.status == "disabled"
@@ -115,6 +120,7 @@ class TestDisabledSourceSemantics:
         mock_wikipedia_success()
         mock_guardian_empty()
         mock_hacker_news_success()
+        mock_arxiv_empty()
         search_id = _make_search(client)
         assert _status(client, search_id) == "completed"
         sources = _sources(client, search_id)
@@ -128,6 +134,7 @@ class TestDisabledSourceSemantics:
         mock_wikipedia_timeout()
         mock_guardian_empty()
         mock_hacker_news_empty()
+        mock_arxiv_empty()
         search_id = _make_search(client)
         assert _status(client, search_id) == "partial"
         sources = _sources(client, search_id)
@@ -143,6 +150,7 @@ class TestDisabledSourceSemantics:
             return_value=httpx.Response(200, json={"response": {"status": "error"}})
         )
         mock_hacker_news_empty()
+        mock_arxiv_timeout()
         respx.get(HACKER_NEWS_API_URL).mock(
             side_effect=httpx.ConnectTimeout(
                 "timeout", request=httpx.Request("GET", HACKER_NEWS_API_URL)
@@ -206,6 +214,7 @@ class TestNoEnabledSources:
         mock_wikipedia_success()
         mock_guardian_empty()
         mock_hacker_news_empty()
+        mock_arxiv_empty()
         # Guardian + HN remain registered so creation is not rejected.
         from app.sources.guardian import GuardianAdapter
         from app.sources.hacker_news import HackerNewsAdapter
@@ -239,6 +248,7 @@ class TestCredentialTransition:
         mock_wikipedia_success()
         mock_guardian_empty()
         mock_hacker_news_empty()
+        mock_arxiv_empty()
 
         # Phase 1: no Reddit credentials -> disabled.
         sid1 = _make_search(client, "without reddit")

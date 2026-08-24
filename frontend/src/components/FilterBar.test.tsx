@@ -12,6 +12,11 @@ function renderBar(overrides: Partial<Filters> = {}) {
 }
 
 describe('FilterBar', () => {
+  it('renders the research source-type filter (M22.1)', () => {
+    renderBar()
+    expect(screen.getByRole('checkbox', { name: 'research' })).toBeInTheDocument()
+  })
+
   it('toggles a source type on', async () => {
     const user = userEvent.setup()
     const { onChange } = renderBar()
