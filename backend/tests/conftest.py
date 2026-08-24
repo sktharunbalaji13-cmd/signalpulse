@@ -24,6 +24,8 @@ def clean_secrets(monkeypatch):
     # M22.2: GitHub Actions injects its own ambient GITHUB_TOKEN into CI jobs;
     # our differently-named setting must still start blank in every test.
     monkeypatch.setattr(settings, "github_api_token", "")
+    # M22.3: same hermetic rule for the Stack Exchange key.
+    monkeypatch.setattr(settings, "stackexchange_api_key", "")
 
 
 @pytest.fixture(autouse=True)

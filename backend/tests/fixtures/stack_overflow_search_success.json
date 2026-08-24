@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "tags": ["reactjs", "react-hooks", "use-effect"],
+      "owner": {
+        "reputation": 42979,
+        "user_id": 12345,
+        "display_name": "Sung M Kim"
+      },
+      "is_answered": true,
+      "view_count": 665432,
+      "score": 594,
+      "last_activity_date": 1541692799,
+      "creation_date": 1541175600,
+      "question_id": 53949400,
+      "link": "https://stackoverflow.com/questions/53949400/react-hook-warnings-for-async-function-in-useeffect-useeffect-function-retur",
+      "title": "React Hook Warnings for async function in useEffect: useEffect function must return a cleanup function or nothing",
+      "answer_count": 20
+    },
+    {
+      "tags": ["git", "git-rebase", "git-merge"],
+      "owner": {
+        "reputation": 98765,
+        "user_id": 6789,
+        "display_name": "Example Dev &amp; Co"
+      },
+      "is_answered": true,
+      "view_count": 1000000,
+      "score": 2552,
+      "last_activity_date": 1700000000,
+      "creation_date": 1240542588,
+      "question_id": 802115,
+      "link": "https://stackoverflow.com/questions/802115/when-do-you-use-git-rebase-instead-of-git-merge",
+      "title": "When do you use Git rebase instead of Git merge?"
+    }
+  ],
+  "has_more": true,
+  "quota_max": 10000,
+  "quota_remaining": 9987
+}

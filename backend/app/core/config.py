@@ -108,6 +108,16 @@ class Settings(BaseSettings):
     github_max_results: int = 10
     github_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
 
+    # M22.3 Stack Overflow adapter (ADR 0020): Stack Exchange /search/advanced
+    # with a free Stack Apps key (10k req/day keyed vs 300/day shared per-IP).
+    # Empty key -> source reports disabled (M21.3 semantics), never failure.
+    # Field names avoid GitHub Actions' ambient-variable namespace (M22.2 lesson).
+    stackoverflow_search_url: str = "https://api.stackexchange.com/2.3/search/advanced"
+    stackexchange_api_key: str = ""
+    stackoverflow_timeout_seconds: float = 5.0
+    stackoverflow_max_results: int = 10
+    stackoverflow_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

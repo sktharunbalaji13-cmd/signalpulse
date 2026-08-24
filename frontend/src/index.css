@@ -722,6 +722,12 @@ summary:focus-visible {
   background: transparent;
 }
 
+.chip--qa {
+  color: #7fdbca;
+  border-color: rgba(127, 219, 202, 0.35);
+  background: rgba(127, 219, 202, 0.1);
+}
+
 .chip--duplicate {
   color: var(--muted);
   text-transform: none;

@@ -1,8 +1,8 @@
-﻿# SignalPulse
+# SignalPulse
 
 **Real-time multi-source information intelligence — news, reference and social results, ranked and de-duplicated in one place.**
 
-**🟢 [Try the live demo](https://signalpulse-frontend.onrender.com)** — one query fans out to Wikipedia, The Guardian, Hacker News, arXiv and GitHub in parallel; results are deduplicated, ranked, and attributed per source.
+**🟢 [Try the live demo](https://signalpulse-frontend.onrender.com)** — one query fans out to Wikipedia, The Guardian, Hacker News, arXiv, GitHub and Stack Overflow in parallel; results are deduplicated, ranked, and attributed per source.
 
 ![SignalPulse search results with per-source attribution](docs/assets/results.png)
 
@@ -24,7 +24,7 @@ Answering a question well usually means looking in more than one place. News cov
 
 | Capability | State |
 |---|---|
-| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub) | **PRODUCTION** |
+| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow) | **PRODUCTION** |
 | Reddit source adapter | Implemented, credentials not configured in production |
 | C4 ranking model | **PRODUCTION** (nDCG@10 = 0.7850 on frozen corpus) |
 | Semantic relevance stage (SEM1) | **EXPERIMENTAL — disabled** (see below) |
@@ -50,8 +50,9 @@ flowchart TB
     PIPE --> HN["Hacker News adapter"]
     PIPE --> AX["arXiv adapter<br/>(research)"]
     PIPE --> GH["GitHub adapter<br/>(code)"]
+    PIPE --> SO["Stack Overflow adapter<br/>(qa)"]
 
-    W & G & R & HN & AX & GH -->|"canonical SourceResult<br/>+ raw provenance JSON"| PERSIST["Persist results + source events"]
+    W & G & R & HN & AX & GH & SO -->|"canonical SourceResult<br/>+ raw provenance JSON"| PERSIST["Persist results + source events"]
 
     PERSIST --> DEDUP["Deduplication<br/>exact + fuzzy → annotate groups"]
     DEDUP --> SEM{"SEM1 semantic stage<br/>SEMANTIC_ENABLED=false"}
@@ -69,7 +70,7 @@ Detailed component documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Key capabilities
 
 - **Measured in production** — p95 search latency **1.59 s** (24 h window, multi-source fan-out); zero empty-result searches across all traffic; ~0.3 % duplicate rate over ~2,500 ranked results.
-- **One query, five source types** — news, reference, social discussion, research literature, and code repositories normalized into a single `SourceResult` contract with full raw-payload provenance.
+- **One query, six source types** — news, reference, social discussion, research literature, code repositories, and developer Q&A normalized into a single `SourceResult` contract with full raw-payload provenance.
 - **Honest failure handling** — each source is isolated with its own timeout (4.5 s) and database session; one failing source degrades the search to `partial` instead of failing everything.
 - **Annotate-don't-delete deduplication** — duplicate clusters are detected (canonical URL, normalized title, fuzzy match), grouped with evidence, and marked; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)).
 - **C4 ranking** — relevance, freshness, quality, and diversity signals composed into a deterministic total order, persisted per result.
@@ -105,7 +106,7 @@ The NO-GOs are deliberate outcomes of the evidence process, not unfinished work.
 
 | Suite | Count |
 |---|---|
-| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, source availability, Postgres compatibility | 418 passed, 5 skipped |
+| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, source availability, Postgres compatibility | 435 passed, 5 skipped |
 | Frontend (Vitest + Testing Library) | 64 passed |
 | Evaluation harness (corpus determinism, metric math, candidate gates) | 98 passed |
 
@@ -137,7 +138,7 @@ Linting: `ruff` across backend and eval. CI runs all suites plus the frontend Ty
 Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMAP.md). Planned next (M22 multi-source expansion program, one gated source at a time):
 
 1. **M22.2 — GitHub** ✅ shipped ([ADR 0019](docs/ADR/0019-github-code-source.md))
-2. **M22.3 — Stack Overflow** (developer Q&A; free API key)
+2. **M22.3 — Stack Overflow** ✅ shipped ([ADR 0020](docs/ADR/0020-stackoverflow-qa-source.md))
 3. **M22.4 — Bluesky** (public social discussion) · **M22.5 — Semantic Scholar** (academic depth, after dedup-overlap measurement)
 4. Blocked externally: Reddit approval, X (no viable free tier). NO-GO on record: GDELT ([ADR 0005](docs/ADR/0005-gdelt-gate.md)), Crossref, Mastodon.
 5. Deferred: SEM1 activation (infrastructure-gated), accounts, alerting.
@@ -151,7 +152,7 @@ Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMA
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestone history and plan |
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | Operational procedures |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Data storage, retention, and logging boundaries |
-| [docs/ADR/](docs/ADR) | Decision records 0001–0018 |
+| [docs/ADR/](docs/ADR) | Decision records 0001–0020 |
 
 ## License
 

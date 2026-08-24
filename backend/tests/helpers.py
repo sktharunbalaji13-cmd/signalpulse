@@ -15,6 +15,7 @@ GDELT_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 HACKER_NEWS_API_URL = "https://hn.algolia.com/api/v1/search"
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 GITHUB_SEARCH_URL = "https://api.github.com/search/repositories"
+STACKOVERFLOW_SEARCH_URL = "https://api.stackexchange.com/2.3/search/advanced"
 
 
 def load_fixture(name: str) -> dict:
@@ -201,5 +202,33 @@ def mock_github_timeout() -> None:
     respx.get(GITHUB_SEARCH_URL).mock(
         side_effect=httpx.ConnectTimeout(
             "timeout", request=httpx.Request("GET", GITHUB_SEARCH_URL)
+        )
+    )
+
+
+STACKOVERFLOW_EMPTY_PAYLOAD = {
+    "items": [],
+    "has_more": False,
+    "quota_max": 10000,
+    "quota_remaining": 9990,
+}
+
+
+def mock_stack_overflow_success() -> None:
+    respx.get(STACKOVERFLOW_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("stack_overflow_search_success.json"))
+    )
+
+
+def mock_stack_overflow_empty() -> None:
+    respx.get(STACKOVERFLOW_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=STACKOVERFLOW_EMPTY_PAYLOAD)
+    )
+
+
+def mock_stack_overflow_timeout() -> None:
+    respx.get(STACKOVERFLOW_SEARCH_URL).mock(
+        side_effect=httpx.ConnectTimeout(
+            "timeout", request=httpx.Request("GET", STACKOVERFLOW_SEARCH_URL)
         )
     )

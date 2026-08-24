@@ -1,6 +1,6 @@
 # SignalPulse Roadmap
 
-Status: **post-M22.2**. Everything below marked ✅ is shipped and deployed;
+Status: **post-M22.3**. Everything below marked ✅ is shipped and deployed;
 items under *Next* / *Deferred* are **planned, not implemented**.
 
 ## Completed milestones
@@ -30,6 +30,7 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M22.0 | Source-expansion feasibility audit | 9 candidates classified GO / CONDITIONAL / NO-GO / externally blocked with verified API economics; ranking-gate rule adopted: new source type → corpus evidence → production |
 | M22.1 | arXiv research source + new `research` type | Live gate: 6/6 success, p50 0.95 s; one cross-source title collision handled by dedup; corpus rankings bit-identical; quality 0.75, weights (0.60/0.20/0.20), 30-day freshness half-life ([ADR 0018](ADR/0018-arxiv-research-source.md)) |
 | M22.2 | GitHub code source + new `code` type | Repositories only, backend-held PAT, disabled without token; live gate: 10/10 success, p50 0.58 s / max 1.63 s, 0 over budget; HN↔GitHub exact-URL dup rate mean 0.8/query absorbed annotate-only; quality 0.70, weights (0.60/0.15/0.25), 90-day half-life ([ADR 0019](ADR/0019-github-code-source.md)) |
+| M22.3 | Stack Overflow Q&A source + new qa type | Questions only, key-required (10k/day), disabled without it; live gate: 10/10 success, p50 0.98 s / p95 2.21 s, 0 over budget; minimal dedup overlap vs HN/GitHub; quality 0.75, weights (0.60/0.20/0.20), 180-day half-life ([ADR 0020](ADR/0020-stackoverflow-qa-source.md)) |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus
@@ -39,9 +40,6 @@ and harness remain the gate for any future ranking change.
 
 The M22 multi-source expansion program proceeds one gated source at a time
 (audit → adapter → corpus evidence → live measurement → production):
-
-### M22.3 — Stack Overflow *(planned — requires free API key)*
-Developer Q&A; 10,000 req/day with a registered key (300/day without).
 
 ### M22.4 — Bluesky / M22.5 — Semantic Scholar *(planned)*
 Bluesky fills the public-social class while Reddit is blocked (keyless

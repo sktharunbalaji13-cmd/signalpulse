@@ -42,11 +42,14 @@ RESEARCH_HALF_LIFE_HOURS = 24.0 * 30.0
 # (pushed_at). Active projects push within weeks; abandonment fades slowly -
 # a quarterly horizon, far slower than news.
 CODE_HALF_LIFE_HOURS = 24.0 * 90.0
+# M22.3 (ADR 0020): Q&A knowledge decays via framework/library drift - slower
+# than code, faster than papers. Design constant, not corpus-validated.
+QA_HALF_LIFE_HOURS = 24.0 * 180.0
 FRESHNESS_FLOOR = 0.05
 MISSING_TIMESTAMP_SCORE = 0.25
 REFERENCE_FRESHNESS = 0.5
 
-_SOURCE_TYPES = frozenset({"news", "social", "reference", "research", "code"})
+_SOURCE_TYPES = frozenset({"news", "social", "reference", "research", "code", "qa"})
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -96,5 +99,6 @@ def freshness_score(
         "social": SOCIAL_HALF_LIFE_HOURS,
         "research": RESEARCH_HALF_LIFE_HOURS,
         "code": CODE_HALF_LIFE_HOURS,
+        "qa": QA_HALF_LIFE_HOURS,
     }[source_type]
     return _decay(age_hours, half_life)

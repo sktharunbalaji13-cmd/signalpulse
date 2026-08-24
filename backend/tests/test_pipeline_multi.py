@@ -160,6 +160,7 @@ def test_source_events_record_guardian_outcomes(client, session_factory, guardia
             "Hacker News",
             "arXiv",
             "GitHub",
+            "Stack Overflow",
         }
         wikipedia_event = events["Wikipedia"]
         assert wikipedia_event.status == "success"
