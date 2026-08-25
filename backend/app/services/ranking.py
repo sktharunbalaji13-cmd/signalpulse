@@ -44,6 +44,7 @@ SOURCE_QUALITY = {
     "arXiv": 0.75,  # M22.1: moderated preprint repository (not peer-reviewed)
     "GitHub": 0.70,  # M22.2: hosts everything from toys to critical infra (stars NOT a signal)
     "Stack Overflow": 0.75,  # M22.3: moderated + score-voted Q&A (per-item variance, NOT a signal)
+    "Bluesky": 0.45,  # M22.4: raw public microblog, noisier than curated social (below Reddit 0.50)
     "Global Wire": 0.85,  # corpus-only placeholder (no real second news source yet)
 }
 SOCIAL_QUALITY = 0.50

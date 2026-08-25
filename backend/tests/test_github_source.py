@@ -26,6 +26,7 @@ from app.services.ranking import (
 from tests.helpers import (
     GITHUB_SEARCH_URL,
     mock_arxiv_empty,
+    mock_bluesky_empty,
     mock_github_success,
     mock_github_timeout,
     mock_guardian_empty,
@@ -246,6 +247,7 @@ class TestPipelineIntegration:
         mock_guardian_empty()
         mock_hacker_news_empty()
         mock_arxiv_empty()
+        mock_bluesky_empty()
         mock_reddit_success()
         mock_github_success()
 
@@ -272,6 +274,7 @@ class TestPipelineIntegration:
         mock_guardian_empty()
         mock_hacker_news_empty()
         mock_arxiv_empty()
+        mock_bluesky_empty()
         mock_reddit_success()
         mock_github_timeout()
 
@@ -288,6 +291,7 @@ class TestPipelineIntegration:
         mock_guardian_empty()
         mock_hacker_news_empty()
         mock_arxiv_empty()
+        mock_bluesky_empty()
 
         search_id = client.post("/api/v1/searches", json={"query": "ai"}).json()["search_id"]
         body = client.get(f"/api/v1/searches/{search_id}").json()

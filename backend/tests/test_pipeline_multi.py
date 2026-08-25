@@ -11,6 +11,8 @@ from app.sources.registry import registry
 from tests.helpers import (
     mock_arxiv_empty,
     mock_arxiv_timeout,
+    mock_bluesky_empty,
+    mock_bluesky_timeout,
     mock_guardian_api_key_error,
     mock_guardian_success,
     mock_guardian_timeout,
@@ -53,6 +55,7 @@ def test_wikipedia_and_guardian_both_succeed(client, guardian_key, reddit_creds)
     mock_reddit_empty()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -84,6 +87,7 @@ def test_wikipedia_succeeds_guardian_fails_partial(client, guardian_key):
     mock_guardian_api_key_error()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -108,6 +112,7 @@ def test_guardian_succeeds_wikipedia_fails_partial(client, guardian_key):
     mock_guardian_success()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -131,6 +136,7 @@ def test_both_sources_fail_marks_search_failed(client, guardian_key):
     mock_guardian_timeout()
     mock_hacker_news_timeout()
     mock_arxiv_timeout()
+    mock_bluesky_timeout()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -146,6 +152,7 @@ def test_source_events_record_guardian_outcomes(client, session_factory, guardia
     mock_guardian_api_key_error()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     with session_factory() as session:
@@ -161,6 +168,7 @@ def test_source_events_record_guardian_outcomes(client, session_factory, guardia
             "arXiv",
             "GitHub",
             "Stack Overflow",
+            "Bluesky",
         }
         wikipedia_event = events["Wikipedia"]
         assert wikipedia_event.status == "success"
@@ -189,6 +197,7 @@ def test_all_three_sources_succeed_completed(client, guardian_key, reddit_creds)
     mock_reddit_success()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -221,6 +230,7 @@ def test_reddit_fails_others_succeed_partial(client, guardian_key, reddit_creds)
     mock_reddit_timeout()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -237,6 +247,7 @@ def test_reddit_succeeds_another_fails_partial(client, guardian_key, reddit_cred
     mock_reddit_success()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -253,6 +264,7 @@ def test_reddit_failure_keeps_other_results(client, session_factory, guardian_ke
     mock_reddit_timeout()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     results = client.get(f"/api/v1/searches/{search_id}/results?per_page=100").json()
@@ -267,6 +279,7 @@ def test_reddit_source_event_recorded(client, session_factory, guardian_key, red
     mock_reddit_timeout()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     with session_factory() as session:
@@ -292,6 +305,7 @@ def test_reddit_results_persisted_as_canonical_source_result(
     mock_reddit_success()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     with session_factory() as session:
@@ -325,6 +339,7 @@ def test_ranking_persists_scores_and_orders_results(
     mock_reddit_success()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
 
     body = client.get(f"/api/v1/searches/{search_id}").json()
@@ -364,6 +379,7 @@ def test_results_endpoint_order_matches_ranker_order(
     mock_reddit_success()
     mock_hacker_news_empty()
     mock_arxiv_empty()
+    mock_bluesky_empty()
     search_id = create_search(client)
     client.get(f"/api/v1/searches/{search_id}").json()
 

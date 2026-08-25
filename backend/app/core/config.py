@@ -118,6 +118,14 @@ class Settings(BaseSettings):
     stackoverflow_max_results: int = 10
     stackoverflow_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
 
+    # M22.4 Bluesky adapter (ADR 0021): anonymous AppView searchPosts,
+    # single-page only. api.bsky.app (public.api.bsky.app 403s search since
+    # mid-2026). No credentials; the source is always configured.
+    bluesky_search_url: str = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+    bluesky_timeout_seconds: float = 5.0
+    bluesky_max_results: int = 25  # API cap for a single page
+    bluesky_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

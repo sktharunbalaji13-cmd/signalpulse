@@ -28,6 +28,7 @@ from tests.helpers import (
     mock_arxiv_empty,
     mock_arxiv_success,
     mock_arxiv_timeout,
+    mock_bluesky_empty,
     mock_guardian_empty,
     mock_hacker_news_empty,
     mock_reddit_success,
@@ -125,6 +126,7 @@ class TestArxivAdapter:
     @respx.mock
     def test_timeout_maps_to_timeout_kind(self):
         mock_arxiv_timeout()
+        mock_bluesky_empty()
         from app.sources.arxiv import ArxivAdapter
         from app.sources.base import SourceError
 
@@ -135,6 +137,7 @@ class TestArxivAdapter:
     @respx.mock
     def test_empty_feed_returns_no_results(self):
         mock_arxiv_empty()
+        mock_bluesky_empty()
         from app.sources.arxiv import ArxivAdapter
 
         assert asyncio.run(ArxivAdapter().search("test")) == []
@@ -210,6 +213,7 @@ class TestPipelineIntegration:
         mock_hacker_news_empty()
         mock_arxiv_success()
         mock_reddit_success()
+        mock_bluesky_empty()
 
         created = client.post("/api/v1/searches", json={"query": "attention"})
         assert created.status_code == 202
@@ -239,6 +243,7 @@ class TestPipelineIntegration:
         mock_guardian_empty()
         mock_hacker_news_empty()
         mock_arxiv_timeout()
+        mock_bluesky_empty()
         mock_reddit_success()
 
         search_id = client.post("/api/v1/searches", json={"query": "ai"}).json()["search_id"]

@@ -16,6 +16,7 @@ HACKER_NEWS_API_URL = "https://hn.algolia.com/api/v1/search"
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 GITHUB_SEARCH_URL = "https://api.github.com/search/repositories"
 STACKOVERFLOW_SEARCH_URL = "https://api.stackexchange.com/2.3/search/advanced"
+BLUESKY_SEARCH_URL = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
 
 
 def load_fixture(name: str) -> dict:
@@ -230,5 +231,26 @@ def mock_stack_overflow_timeout() -> None:
     respx.get(STACKOVERFLOW_SEARCH_URL).mock(
         side_effect=httpx.ConnectTimeout(
             "timeout", request=httpx.Request("GET", STACKOVERFLOW_SEARCH_URL)
+        )
+    )
+
+
+BLUESKY_EMPTY_PAYLOAD = {"cursor": None, "posts": []}
+
+
+def mock_bluesky_success() -> None:
+    respx.get(BLUESKY_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("bluesky_search_success.json"))
+    )
+
+
+def mock_bluesky_empty() -> None:
+    respx.get(BLUESKY_SEARCH_URL).mock(return_value=httpx.Response(200, json=BLUESKY_EMPTY_PAYLOAD))
+
+
+def mock_bluesky_timeout() -> None:
+    respx.get(BLUESKY_SEARCH_URL).mock(
+        side_effect=httpx.ConnectTimeout(
+            "timeout", request=httpx.Request("GET", BLUESKY_SEARCH_URL)
         )
     )
