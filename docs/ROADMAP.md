@@ -32,6 +32,7 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M22.2 | GitHub code source + new `code` type | Repositories only, backend-held PAT, disabled without token; live gate: 10/10 success, p50 0.58 s / max 1.63 s, 0 over budget; HN↔GitHub exact-URL dup rate mean 0.8/query absorbed annotate-only; quality 0.70, weights (0.60/0.15/0.25), 90-day half-life ([ADR 0019](ADR/0019-github-code-source.md)) |
 | M22.3 | Stack Overflow Q&A source + new qa type | Questions only, key-required (10k/day), disabled without it; live gate: 10/10 success, p50 0.98 s / p95 2.21 s, 0 over budget; minimal dedup overlap vs HN/GitHub; quality 0.75, weights (0.60/0.20/0.20), 180-day half-life ([ADR 0020](ADR/0020-stackoverflow-qa-source.md)) |
 | M22.4 | Bluesky social source - activates dormant social type | Anonymous single-page searchPosts (25/post max, no cursor - 403-blocked); live gate: 10/10 success, p50 1.75 s / max 2.24 s, 0 over budget; near-zero dedup overlap; only ranking change is SOURCE_QUALITY[Bluesky]=0.45 ([ADR 0021](ADR/0021-bluesky-social-source.md)) |
+| M22.6 | Third-party Reddit providers (FetchLayer et al.) | NO-GO on authorization/provenance grounds — technical fit was strong but no documented Reddit authorization exists for acquisition or downstream redistribution; official API remains the preferred path ([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)) |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus
