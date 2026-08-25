@@ -1,12 +1,8 @@
 import asyncio
-import hashlib
-import json
-import re
 import secrets
 from contextlib import asynccontextmanager
 from time import perf_counter
 
-import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -64,58 +60,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             latency_ms=round(latency_ms, 1),
         )
         return response
-
-
-# --------------------------------------------------------------------------
-# M22.12 TEMPORARY Bluesky 403 diagnostic (Probe B). Single admin-gated,
-# telemetry-free endpoint; removed entirely by the follow-up revert commit.
-_DIAG_URL = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
-_DIAG_QUERY = {"q": "test", "limit": "1"}
-_DIAG_ALLOW_HEADERS = {
-    "retry-after",
-    "cf-ray",
-    "cf-mitigated",
-    "server",
-    "content-type",
-    "date",
-    "via",
-}
-
-
-def _diag_redact(value: str) -> str:
-    """M22.12: mask credential/identity-like material before it can leave."""
-    value = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[EMAIL]", value)
-    value = re.sub(r"did:(?:plc|web):[A-Za-z0-9:._-]+", "[DID]", value)
-    value = re.sub(r"[A-Za-z0-9.-]+\.bsky\.social", "[HANDLE]", value)
-    value = re.sub(
-        r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}", "[JWT]", value
-    )
-    return value
-
-
-def _diag_classify_body(content_type: str, raw_text: str) -> dict:
-    """M22.12: classify the response body without ever returning it raw."""
-    ctype = content_type.lower()
-    if "json" in ctype:
-        try:
-            parsed = json.loads(raw_text)
-        except ValueError:
-            return {"body_class": "JSON_UNPARSEABLE"}
-        if not isinstance(parsed, dict):
-            return {"body_class": "JSON", "json_keys": type(parsed).__name__}
-        out: dict = {"body_class": "JSON", "json_keys": sorted(parsed.keys())}
-        for field in ("error", "message"):
-            if field in parsed:
-                out[f"json_{field}"] = _diag_redact(str(parsed[field]))[:300]
-        return out
-    if "<html" in raw_text.lower():
-        label = (
-            "EDGE_RULE_HTML"
-            if "administrative rules" in raw_text.lower()
-            else "HTML_BLOCK_PAGE_OTHER"
-        )
-        return {"body_class": label}
-    return {"body_class": "OTHER", "other_prefix": repr(_diag_redact(raw_text[:120]))}
 
 
 def create_app() -> FastAPI:
@@ -234,61 +178,6 @@ def create_app() -> FastAPI:
         methods=["POST"],
         tags=["admin"],
         name="admin_purge_expired",
-    )
-
-    def admin_bluesky_diag_endpoint(request: Request) -> dict:
-        """M22.12 TEMPORARY single-shot Bluesky 403 diagnostic (Probe B).
-
-        Removed entirely by the follow-up revert commit. Performs exactly one
-        outbound request shaped like the production adapter's request,
-        persists nothing (no DB session exists in this scope), and returns
-        classified, redacted data only — never the raw body.
-        """
-        _verify_admin(request)
-        started = perf_counter()
-        try:
-            resp = httpx.get(
-                _DIAG_URL,
-                params=_DIAG_QUERY,
-                headers={
-                    "User-Agent": settings.bluesky_user_agent,
-                    "Accept": "application/json",
-                },
-                timeout=settings.bluesky_timeout_seconds,
-            )
-        except httpx.TimeoutException:
-            return {
-                "outcome": "timeout",
-                "elapsed_ms": round((perf_counter() - started) * 1000),
-            }
-        except httpx.HTTPError as exc:
-            return {"outcome": f"request_error:{type(exc).__name__}"}
-        elapsed_ms = round((perf_counter() - started) * 1000)
-        captured_headers = {
-            name.lower(): value
-            for name, value in resp.headers.items()
-            if name.lower() in _DIAG_ALLOW_HEADERS or "ratelimit" in name.lower()
-        }
-        body = _diag_classify_body(
-            resp.headers.get("content-type", ""), resp.text[:4096]
-        )
-        log_event(
-            "bluesky_diag", status=resp.status_code, body_class=body.get("body_class")
-        )
-        return {
-            "status_code": resp.status_code,
-            "elapsed_ms": elapsed_ms,
-            "headers": captured_headers,
-            **body,
-            "body_sha256_12": hashlib.sha256(resp.content).hexdigest()[:12],
-        }
-
-    app.add_api_route(
-        "/api/v1/admin/diag/bluesky403",
-        admin_bluesky_diag_endpoint,
-        methods=["GET"],
-        tags=["admin"],
-        name="admin_bluesky_diag",
     )
 
     app.add_api_route(
