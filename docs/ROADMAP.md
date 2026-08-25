@@ -1,6 +1,6 @@
 # SignalPulse Roadmap
 
-Status: **post-M22.4**. Everything below marked ✅ is shipped and deployed;
+Status: **post-M22.7**. Everything below marked ✅ is shipped and deployed;
 items under *Next* / *Deferred* are **planned, not implemented**.
 
 ## Completed milestones
@@ -33,6 +33,7 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M22.3 | Stack Overflow Q&A source + new qa type | Questions only, key-required (10k/day), disabled without it; live gate: 10/10 success, p50 0.98 s / p95 2.21 s, 0 over budget; minimal dedup overlap vs HN/GitHub; quality 0.75, weights (0.60/0.20/0.20), 180-day half-life ([ADR 0020](ADR/0020-stackoverflow-qa-source.md)) |
 | M22.4 | Bluesky social source - activates dormant social type | Anonymous single-page searchPosts (25/post max, no cursor - 403-blocked); live gate: 10/10 success, p50 1.75 s / max 2.24 s, 0 over budget; near-zero dedup overlap; only ranking change is SOURCE_QUALITY[Bluesky]=0.45 ([ADR 0021](ADR/0021-bluesky-social-source.md)) |
 | M22.6 | Third-party Reddit providers (FetchLayer et al.) | NO-GO on authorization/provenance grounds — technical fit was strong but no documented Reddit authorization exists for acquisition or downstream redistribution; official API remains the preferred path ([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)) |
+| M22.7 | YouTube video source + new ideo type | Keyed gate passed (10/10, p50 0.40 s, zero spam); quota-exhaustion (403 quotaExceeded) maps to rate_limited; quality 0.60, weights (0.55/0.25/0.20), 72h half-life ([ADR 0023](ADR/0023-youtube-video-source.md)) |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus

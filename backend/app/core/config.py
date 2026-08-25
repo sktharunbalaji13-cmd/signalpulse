@@ -126,6 +126,16 @@ class Settings(BaseSettings):
     bluesky_max_results: int = 25  # API cap for a single page
     bluesky_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
 
+    # M22.7 YouTube adapter (ADR 0023): Data API v3 search.list with a backend-
+    # held Google Cloud key. search.list draws from its own 100-calls/day
+    # bucket; exhaustion (403 quotaExceeded) maps to rate_limited, not failure.
+    # Empty key -> source reports disabled (M21.3 semantics).
+    youtube_search_url: str = "https://www.googleapis.com/youtube/v3/search"
+    youtube_api_key: str = ""
+    youtube_timeout_seconds: float = 5.0
+    youtube_max_results: int = 10
+    youtube_user_agent: str = "SignalPulse/0.1.0 (https://github.com/signalpulse)"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

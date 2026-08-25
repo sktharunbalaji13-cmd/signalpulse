@@ -7,6 +7,7 @@ from app.sources.hacker_news import HackerNewsAdapter
 from app.sources.reddit import RedditAdapter
 from app.sources.stack_overflow import StackOverflowAdapter
 from app.sources.wikipedia import WikipediaAdapter
+from app.sources.youtube import YouTubeAdapter
 
 
 class SourceRegistry:
@@ -46,6 +47,7 @@ registry.register("arxiv", ArxivAdapter())
 registry.register("github", GitHubAdapter())
 registry.register("stack_overflow", StackOverflowAdapter())
 registry.register("bluesky", BlueskyAdapter())
+registry.register("youtube", YouTubeAdapter())
 # GDELT adapter exists (app.sources.gdelt) and is fully tested offline, but
 # it is deliberately NOT registered: the M2-C gate evaluation was a NO-GO
 # (see docs/ADR/0005-gdelt-gate.md). Re-enable with one line if the

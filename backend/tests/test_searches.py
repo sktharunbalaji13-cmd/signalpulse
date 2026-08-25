@@ -133,7 +133,7 @@ def test_source_events_persisted(client, session_factory, guardian_key, reddit_c
     search_id = create_search(client)
     with session_factory() as session:
         events = session.query(SourceEvent).filter_by(search_id=search_id).all()
-        assert len(events) == 8
+        assert len(events) == 9
         wikipedia_event = next(e for e in events if e.source_name == "Wikipedia")
         assert wikipedia_event.status == "success"
         assert wikipedia_event.result_count == 2

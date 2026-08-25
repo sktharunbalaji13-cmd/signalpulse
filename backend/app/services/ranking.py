@@ -45,6 +45,7 @@ SOURCE_QUALITY = {
     "GitHub": 0.70,  # M22.2: hosts everything from toys to critical infra (stars NOT a signal)
     "Stack Overflow": 0.75,  # M22.3: moderated + score-voted Q&A (per-item variance, NOT a signal)
     "Bluesky": 0.45,  # M22.4: raw public microblog, noisier than curated social (below Reddit 0.50)
+    "YouTube": 0.60,  # M22.7: spans junk-to-official channels; engagement NOT a signal
     "Global Wire": 0.85,  # corpus-only placeholder (no real second news source yet)
 }
 SOCIAL_QUALITY = 0.50
@@ -52,9 +53,18 @@ REFERENCE_QUALITY = 0.80
 RESEARCH_QUALITY = 0.75
 CODE_QUALITY = 0.70
 QA_QUALITY = 0.75
+VIDEO_QUALITY = 0.60
 UNKNOWN_QUALITY = 0.50
 
-TYPE_PRIORITY = {"news": 0, "social": 1, "reference": 2, "research": 3, "code": 4, "qa": 5}
+TYPE_PRIORITY = {
+    "news": 0,
+    "social": 1,
+    "reference": 2,
+    "research": 3,
+    "code": 4,
+    "qa": 5,
+    "video": 6,
+}
 
 WEIGHTS = {
     "news": (0.55, 0.30, 0.15),
@@ -68,6 +78,8 @@ WEIGHTS = {
     "code": (0.60, 0.15, 0.25),
     # M22.3 (ADR 0020): knowledge artifacts with moderate version drift.
     "qa": (0.60, 0.20, 0.20),
+    # M22.7 (ADR 0023): video relevance decays slower than news but real.
+    "video": (0.55, 0.25, 0.20),
 }
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -128,6 +140,8 @@ def source_quality(source_type: str, source_name: str) -> float:
         return CODE_QUALITY
     if source_type == "qa":
         return QA_QUALITY
+    if source_type == "video":
+        return VIDEO_QUALITY
     return UNKNOWN_QUALITY
 
 

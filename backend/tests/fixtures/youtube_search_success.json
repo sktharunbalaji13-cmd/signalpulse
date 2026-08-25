@@ -1,0 +1,32 @@
+{
+  "kind": "youtube#searchListResponse",
+  "regionCode": "US",
+  "pageInfo": {"totalResults": 1000000, "resultsPerPage": 10},
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "etag": "e1",
+      "id": {"kind": "youtube#video", "videoId": "3mtumohmxpf"},
+      "snippet": {
+        "publishedAt": "2026-08-20T14:00:09Z",
+        "channelId": "UCabc123",
+        "title": "PyTorch Tutorial for Beginners - Full Course",
+        "description": "Learn PyTorch from scratch: tensors, autograd, and training loops.",
+        "channelTitle": "freeCodeCamp.org",
+        "liveBroadcastContent": "none",
+        "defaultAudioLanguage": "en"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "etag": "e2",
+      "id": {"kind": "youtube#video", "videoId": "aaaaaaaaaaaa"},
+      "snippet": {
+        "publishedAt": "2026-07-11T09:30:00Z",
+        "channelId": "UCdef456",
+        "title": "Transformers, explained visually",
+        "description": "A visual walkthrough of attention mechanisms."
+      }
+    }
+  ]
+}

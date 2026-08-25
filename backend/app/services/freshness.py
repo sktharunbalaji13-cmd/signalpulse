@@ -45,11 +45,14 @@ CODE_HALF_LIFE_HOURS = 24.0 * 90.0
 # M22.3 (ADR 0020): Q&A knowledge decays via framework/library drift - slower
 # than code, faster than papers. Design constant, not corpus-validated.
 QA_HALF_LIFE_HOURS = 24.0 * 180.0
+# M22.7 (ADR 0023): multimedia explainers age slower than news (tutorials
+# persist) but faster than papers. Design constant, not corpus-validated.
+VIDEO_HALF_LIFE_HOURS = 24.0 * 3.0
 FRESHNESS_FLOOR = 0.05
 MISSING_TIMESTAMP_SCORE = 0.25
 REFERENCE_FRESHNESS = 0.5
 
-_SOURCE_TYPES = frozenset({"news", "social", "reference", "research", "code", "qa"})
+_SOURCE_TYPES = frozenset({"news", "social", "reference", "research", "code", "qa", "video"})
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -100,5 +103,6 @@ def freshness_score(
         "research": RESEARCH_HALF_LIFE_HOURS,
         "code": CODE_HALF_LIFE_HOURS,
         "qa": QA_HALF_LIFE_HOURS,
+        "video": VIDEO_HALF_LIFE_HOURS,
     }[source_type]
     return _decay(age_hours, half_life)

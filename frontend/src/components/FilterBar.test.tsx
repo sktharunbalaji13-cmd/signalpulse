@@ -17,6 +17,7 @@ describe('FilterBar', () => {
     expect(screen.getByRole('checkbox', { name: 'research' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'code' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'qa' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'video' })).toBeInTheDocument()
   })
 
   it('toggles a source type on', async () => {

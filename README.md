@@ -2,7 +2,7 @@
 
 **Real-time multi-source information intelligence — news, reference and social results, ranked and de-duplicated in one place.**
 
-**🟢 [Try the live demo](https://signalpulse-frontend.onrender.com)** — one query fans out to Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow and Bluesky in parallel; results are deduplicated, ranked, and attributed per source.
+**🟢 [Try the live demo](https://signalpulse-frontend.onrender.com)** — one query fans out to Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, Bluesky and YouTube in parallel; results are deduplicated, ranked, and attributed per source.
 
 ![SignalPulse search results with per-source attribution](docs/assets/results.png)
 
@@ -24,7 +24,7 @@ Answering a question well usually means looking in more than one place. News cov
 
 | Capability | State |
 |---|---|
-| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, Bluesky) | **PRODUCTION** |
+| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, Bluesky, YouTube) | **PRODUCTION** |
 | Reddit source adapter | Implemented, credentials not configured in production |
 | C4 ranking model | **PRODUCTION** (nDCG@10 = 0.7850 on frozen corpus) |
 | Semantic relevance stage (SEM1) | **EXPERIMENTAL — disabled** (see below) |
@@ -52,8 +52,9 @@ flowchart TB
     PIPE --> GH["GitHub adapter<br/>(code)"]
     PIPE --> SO["Stack Overflow adapter<br/>(qa)"]
     PIPE --> BS["Bluesky adapter<br/>(social)"]
+    PIPE --> YT["YouTube adapter<br/>(video)"]
 
-    W & G & R & HN & AX & GH & SO & BS -->|"canonical SourceResult<br/>+ raw provenance JSON"| PERSIST["Persist results + source events"]
+    W & G & R & HN & AX & GH & SO & BS & YT -->|"canonical SourceResult<br/>+ raw provenance JSON"| PERSIST["Persist results + source events"]
 
     PERSIST --> DEDUP["Deduplication<br/>exact + fuzzy → annotate groups"]
     DEDUP --> SEM{"SEM1 semantic stage<br/>SEMANTIC_ENABLED=false"}
@@ -71,7 +72,7 @@ Detailed component documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Key capabilities
 
 - **Measured in production** — p95 search latency **1.59 s** (24 h window, multi-source fan-out); zero empty-result searches across all traffic; ~0.3 % duplicate rate over ~2,500 ranked results.
-- **One query, seven source types** — news, reference, social discussion, research literature, code repositories, developer Q&A, and public social posts normalized into a single `SourceResult` contract with full raw-payload provenance.
+- **One query, eight source types** — news, reference, social discussion, research literature, code repositories, developer Q&A, public social posts, and video normalized into a single `SourceResult` contract with full raw-payload provenance.
 - **Honest failure handling** — each source is isolated with its own timeout (4.5 s) and database session; one failing source degrades the search to `partial` instead of failing everything.
 - **Annotate-don't-delete deduplication** — duplicate clusters are detected (canonical URL, normalized title, fuzzy match), grouped with evidence, and marked; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)).
 - **C4 ranking** — relevance, freshness, quality, and diversity signals composed into a deterministic total order, persisted per result.
@@ -107,7 +108,7 @@ The NO-GOs are deliberate outcomes of the evidence process, not unfinished work.
 
 | Suite | Count |
 |---|---|
-| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, source availability, Postgres compatibility | 452 passed, 5 skipped |
+| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, source availability, Postgres compatibility | 467 passed, 5 skipped |
 | Frontend (Vitest + Testing Library) | 64 passed |
 | Evaluation harness (corpus determinism, metric math, candidate gates) | 98 passed |
 
@@ -153,7 +154,7 @@ Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMA
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestone history and plan |
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | Operational procedures |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Data storage, retention, and logging boundaries |
-| [docs/ADR/](docs/ADR) | Decision records 0001–0021 |
+| [docs/ADR/](docs/ADR) | Decision records 0001–0023 |
 
 ## License
 

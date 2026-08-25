@@ -17,6 +17,7 @@ ARXIV_API_URL = "https://export.arxiv.org/api/query"
 GITHUB_SEARCH_URL = "https://api.github.com/search/repositories"
 STACKOVERFLOW_SEARCH_URL = "https://api.stackexchange.com/2.3/search/advanced"
 BLUESKY_SEARCH_URL = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 
 def load_fixture(name: str) -> dict:
@@ -254,3 +255,50 @@ def mock_bluesky_timeout() -> None:
             "timeout", request=httpx.Request("GET", BLUESKY_SEARCH_URL)
         )
     )
+
+
+YOUTUBE_EMPTY_PAYLOAD = {"kind": "youtube#searchListResponse", "items": []}
+
+
+def _quota_exceeded_response() -> httpx.Response:
+    return httpx.Response(
+        403,
+        json={
+            "error": {
+                "code": 403,
+                "message": (
+                    "The request cannot be completed because you have "
+                    "exceeded your quota."
+                ),
+                "errors": [
+                    {
+                        "message": "exceeded",
+                        "domain": "youtube.quota",
+                        "reason": "quotaExceeded",
+                    }
+                ],
+            }
+        },
+    )
+
+
+def mock_youtube_success() -> None:
+    respx.get(YOUTUBE_SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=load_fixture("youtube_search_success.json"))
+    )
+
+
+def mock_youtube_empty() -> None:
+    respx.get(YOUTUBE_SEARCH_URL).mock(return_value=httpx.Response(200, json=YOUTUBE_EMPTY_PAYLOAD))
+
+
+def mock_youtube_timeout() -> None:
+    respx.get(YOUTUBE_SEARCH_URL).mock(
+        side_effect=httpx.ConnectTimeout(
+            "timeout", request=httpx.Request("GET", YOUTUBE_SEARCH_URL)
+        )
+    )
+
+
+def mock_youtube_quota_exceeded() -> None:
+    respx.get(YOUTUBE_SEARCH_URL).mock(return_value=_quota_exceeded_response())

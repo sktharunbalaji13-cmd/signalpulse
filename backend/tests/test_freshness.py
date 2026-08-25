@@ -106,7 +106,7 @@ def test_default_now_uses_the_clock():
     assert FRESHNESS_FLOOR <= score <= 1.0
 
 
-@pytest.mark.parametrize("source_type", ["video", "", "NEWS", "news/social"])
+@pytest.mark.parametrize("source_type", ["", "NEWS", "news/social"])
 def test_unknown_source_type_raises(source_type):
     with pytest.raises(ValueError):
         freshness_score(NOW, source_type, now=NOW)

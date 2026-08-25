@@ -26,6 +26,8 @@ def clean_secrets(monkeypatch):
     monkeypatch.setattr(settings, "github_api_token", "")
     # M22.3: same hermetic rule for the Stack Exchange key.
     monkeypatch.setattr(settings, "stackexchange_api_key", "")
+    # M22.7: same hermetic rule for the YouTube key.
+    monkeypatch.setattr(settings, "youtube_api_key", "")
 
 
 @pytest.fixture(autouse=True)

@@ -22,7 +22,7 @@ from sqlalchemy import and_, or_
 
 from app.db.models import Result
 
-VALID_SOURCE_TYPES = ("news", "social", "reference", "research", "code", "qa")
+VALID_SOURCE_TYPES = ("news", "social", "reference", "research", "code", "qa", "video")
 VALID_TIME_WINDOWS = ("24h", "7d", "30d", "all")
 VALID_DUPLICATES = ("all", "canonical")
 TIME_WINDOW_HOURS = {"24h": 24, "7d": 168, "30d": 720}
