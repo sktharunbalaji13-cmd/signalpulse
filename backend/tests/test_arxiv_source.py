@@ -142,10 +142,38 @@ class TestArxivAdapter:
 
         assert asyncio.run(ArxivAdapter().search("test")) == []
 
+    @respx.mock
     def test_keyless_source_is_always_configured(self):
         from app.sources.arxiv import ArxivAdapter
 
         assert ArxivAdapter().is_configured() is True
+
+    @respx.mock
+    def test_large_author_list_is_capped_at_db_limit(self):
+        """M22.9: results.author is String(200); a large collaboration must be
+        truncated, not fail the source. Full list stays in raw provenance."""
+        import xml.etree.ElementTree as ET
+
+        from app.sources.arxiv import _ATOM, AUTHOR_LIMIT, ArxivAdapter
+
+        authors = "".join(
+            f"<author><name>Collaborator Number {i:03d} Smith-Jones</name></author>"
+            for i in range(30)
+        )
+        entry_xml = (
+            f'<entry xmlns="{_ATOM}"><id>http://arxiv.org/abs/2501.00001</id>'
+            f"<title>Large collaboration paper title</title><summary>An abstract.</summary>"
+            f"<published>2026-01-01T00:00:00Z</published>{authors}</entry>"
+        )
+        entry = ET.fromstring(entry_xml)
+        from datetime import UTC, datetime
+
+        result = ArxivAdapter()._parse_entry(entry, datetime.now(UTC))
+        assert result is not None
+        assert len(result.author) <= AUTHOR_LIMIT
+        assert len(result.author) == AUTHOR_LIMIT  # hit the cap
+        # Unmapped entry fields (including the full author list) stay in raw.
+        assert "authors" not in result.raw  # authors are mapped, not duplicated
 
 
 class TestResearchRankingConstants:
@@ -236,6 +264,51 @@ class TestPipelineIntegration:
                 .all()
             )
             assert len(rows) == 2
+
+    @respx.mock
+    def test_large_author_list_persists_not_fails(
+        self, client, session_factory, guardian_key, reddit_creds
+    ):
+        """M22.9 regression: a large-collaboration paper used to trip
+        String(200) on INSERT -> source 'unexpected' failure -> partial.
+        The capped author must persist and the search must complete."""
+
+        from app.sources.arxiv import _ATOM, AUTHOR_LIMIT
+        from tests.helpers import ARXIV_API_URL
+
+        authors = "".join(
+            f"<author><name>Collaborator {i:03d} of a Very Large Experiment</name></author>"
+            for i in range(40)
+        )
+        feed = (
+            f'<?xml version="1.0"?><feed xmlns="{_ATOM}"><entry>'
+            f'<id>http://arxiv.org/abs/2501.99999</id>'
+            f"<title>Very large collaboration paper</title><summary>Abstract text here.</summary>"
+            f"<published>2026-01-01T00:00:00Z</published>{authors}</entry></feed>"
+        )
+        respx.get(ARXIV_API_URL).mock(return_value=httpx.Response(200, text=feed))
+        mock_wikipedia_success()
+        mock_guardian_empty()
+        mock_hacker_news_empty()
+        mock_reddit_success()
+        mock_bluesky_empty()
+
+        search_id = client.post(
+            "/api/v1/searches", json={"query": "collaboration"}
+        ).json()["search_id"]
+        body = client.get(f"/api/v1/searches/{search_id}").json()
+        assert body["status"] == "completed"
+        arxiv = next(s for s in body["sources"] if s["name"] == "arXiv")
+        assert arxiv["status"] == "success"
+        assert arxiv["result_count"] == 1
+
+        with session_factory() as session:
+            row = (
+                session.query(Result)
+                .filter(Result.search_id == search_id, Result.source_name == "arXiv")
+                .one()
+            )
+            assert len(row.author) <= AUTHOR_LIMIT
 
     @respx.mock
     def test_arxiv_failure_degrades_to_partial(self, client, guardian_key, reddit_creds):

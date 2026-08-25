@@ -7,6 +7,11 @@ from app.core.config import settings
 from app.sources.base import BaseSourceAdapter, SearchParams, SourceError, SourceResult
 
 DESCRIPTION_LIMIT = 500
+# M22.9: results.author is String(200). Large collaborations (100s of authors)
+# exceed the column limit and made the whole source fail as an unexpected
+# error. Cap the joined author string at the column limit. (Authors are not
+# captured in raw - provenance stores the unmapped entry fields verbatim.)
+AUTHOR_LIMIT = 200
 
 _ATOM = "http://www.w3.org/2005/Atom"
 _ARXIV = "http://arxiv.org/schemas/atom"
@@ -112,7 +117,7 @@ class ArxivAdapter(BaseSourceAdapter):
             description=_clean_text(entry.findtext(f"{{{_ATOM}}}summary"))[:DESCRIPTION_LIMIT]
             or None,
             url=url,
-            author=", ".join(authors) or None,
+            author=(", ".join(authors) or None)[:AUTHOR_LIMIT],
             published_at=_parse_published(entry.findtext(f"{{{_ATOM}}}published")),
             retrieved_at=now,
             language=None,
