@@ -40,6 +40,19 @@ class BlueskyAdapter(BaseSourceAdapter):
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         self._client = client
 
+    def is_configured(self) -> bool:
+        """M22.13 (Option C): anonymous Bluesky is disabled by default.
+
+        Production evidence (M22.10/M22.12): persistent HTTP 403
+        EDGE_RULE_HTML administrative edge block on anonymous searchPosts from
+        production egress, zero recoveries, material partial-search
+        degradation. Disabled sources are excluded from fan-out and status
+        math, and render neutrally (ADR 0017). Re-enable explicitly via
+        settings.bluesky_anonymous_enabled only. Authentication remains a
+        separately gated future milestone; nothing auth-related exists here.
+        """
+        return settings.bluesky_anonymous_enabled
+
     def _build_params(self, query: str, limit: int) -> dict:
         # API cap is 25 per page; single-page v1.
         return {"q": query, "limit": str(min(limit, settings.bluesky_max_results))}

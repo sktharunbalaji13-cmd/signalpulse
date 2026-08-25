@@ -120,7 +120,14 @@ class Settings(BaseSettings):
 
     # M22.4 Bluesky adapter (ADR 0021): anonymous AppView searchPosts,
     # single-page only. api.bsky.app (public.api.bsky.app 403s search since
-    # mid-2026). No credentials; the source is always configured.
+    # mid-2026).
+    # M22.13 (Option C, hybrid): anonymous Bluesky is DISABLED BY DEFAULT.
+    # Evidence: persistent HTTP 403 EDGE_RULE_HTML administrative edge block
+    # on anonymous searchPosts from production egress, 92.3% observed failure
+    # rate, zero recoveries, and material partial-search degradation.
+    # Re-enable explicitly via this flag only; authentication remains a
+    # separately gated future feasibility milestone and is NOT implemented.
+    bluesky_anonymous_enabled: bool = False
     bluesky_search_url: str = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
     bluesky_timeout_seconds: float = 5.0
     bluesky_max_results: int = 25  # API cap for a single page

@@ -40,6 +40,12 @@ def reddit_creds(monkeypatch):
     monkeypatch.setattr(settings, "reddit_client_secret", "secret")
 
 
+@pytest.fixture()
+def bluesky_enabled(monkeypatch):
+    """M22.13 (Option C): opt an individual test back into an active Bluesky."""
+    monkeypatch.setattr(settings, "bluesky_anonymous_enabled", True)
+
+
 class TestBlueskyAdapter:
     @respx.mock
     def test_maps_post_to_canonical_result(self):
@@ -79,6 +85,9 @@ class TestBlueskyAdapter:
         sent = dict(route.calls.last.request.url.params)
         assert sent["q"] == "rust"
         assert sent["limit"] == "10"
+        sent_headers = route.calls.last.request.headers
+        assert "authorization" not in sent_headers
+        assert "cookie" not in sent_headers
 
     @respx.mock
     def test_single_page_limit_capped_at_25(self):
@@ -130,10 +139,36 @@ class TestBlueskyAdapter:
         with pytest.raises(SourceError):
             asyncio.run(BlueskyAdapter().search("x"))
 
-    def test_keyless_source_is_always_configured(self):
+    def test_disabled_by_default(self):
+        """M22.13: anonymous Bluesky ships disabled (edge-block evidence)."""
         from app.sources.bluesky import BlueskyAdapter
 
+        assert BlueskyAdapter().is_configured() is False
+
+    def test_flag_enables_through_normal_path(self, monkeypatch):
+        """M22.13 transition: flipping the setting re-enables the source via the
+        normal registry/config path (no special-casing)."""
+        from app.sources.bluesky import BlueskyAdapter
+
+        assert BlueskyAdapter().is_configured() is False
+        monkeypatch.setattr(settings, "bluesky_anonymous_enabled", True)
         assert BlueskyAdapter().is_configured() is True
+
+    def test_no_authenticated_behavior_exists(self):
+        """M22.13 invariant: the adapter carries zero authentication code paths."""
+        import inspect
+
+        from app.sources import bluesky as module
+
+        source = inspect.getsource(module)
+        for forbidden in (
+            "createSession",
+            "Bearer",
+            "app_password",
+            "accessJwt",
+            "Authorization",
+        ):
+            assert forbidden not in source, f"unexpected auth material: {forbidden}"
 
 
 class TestSocialClassActivation:
@@ -183,7 +218,7 @@ class TestSocialClassActivation:
 class TestPipelineIntegration:
     @respx.mock
     def test_search_includes_bluesky_and_persists_social_results(
-        self, client, session_factory, guardian_key, reddit_creds
+        self, client, session_factory, guardian_key, reddit_creds, bluesky_enabled
     ):
         mock_wikipedia_success()
         mock_guardian_empty()
@@ -209,7 +244,9 @@ class TestPipelineIntegration:
             assert len(rows) == 3
 
     @respx.mock
-    def test_bluesky_failure_degrades_to_partial(self, client, guardian_key, reddit_creds):
+    def test_bluesky_failure_degrades_to_partial(
+        self, client, guardian_key, reddit_creds, bluesky_enabled
+    ):
         mock_wikipedia_success()
         mock_guardian_empty()
         mock_hacker_news_empty()
@@ -223,6 +260,30 @@ class TestPipelineIntegration:
         assert body["status"] == "partial"
         bs = next(s for s in body["sources"] if s["name"] == "Bluesky")
         assert bs["status"] == "timeout"
+
+
+class TestDisabledByDefaultPipeline:
+    @respx.mock
+    def test_disabled_bluesky_excluded_from_status_math(
+        self, client, guardian_key, reddit_creds
+    ):
+        """M22.13: with Bluesky disabled, a healthy search completes and a
+        neutral disabled event is recorded — with no Bluesky network call
+        (unmocked under respx, so any adapter invocation would fail the test)."""
+        mock_wikipedia_success()
+        mock_guardian_empty()
+        mock_hacker_news_empty()
+        mock_arxiv_empty()
+        mock_github_empty()
+        mock_reddit_success()
+        # Deliberately NO bluesky route mocked: the source must not fire.
+
+        search_id = client.post("/api/v1/searches", json={"query": "pytorch"}).json()["search_id"]
+        body = client.get(f"/api/v1/searches/{search_id}").json()
+        assert body["status"] == "completed"
+        bs = next(s for s in body["sources"] if s["name"] == "Bluesky")
+        assert bs["status"] == "disabled"
+        assert bs["result_count"] is None
 
 
 class TestDedupCanonicalization:
