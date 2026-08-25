@@ -40,8 +40,15 @@ from sqlalchemy.orm import sessionmaker
 _BACKEND = Path(__file__).resolve().parents[1] / "backend"
 _LOADED = False
 
-FAST_DELAY = 0.05
-SLOW_DELAY = 0.5
+# M22.x: fake delays sized so the "progressive results" observation window is
+# much larger than a shared-CI-runners' scheduling/polling jitter. Previously
+# FAST_DELAY=0.05s made the window ~50ms - smaller than one TestClient round
+# trip on a loaded runner, so the poller missed `first` entirely (first=None
+# flakes on P2/P3). The performance budgets asserted below (first<=3s,
+# completed<=5s, submission<500ms) are UNCHANGED - these delays only make the
+# sampled window observable.
+FAST_DELAY = 0.4
+SLOW_DELAY = 2.0
 
 SECRET_GUARDIAN = "SUPERSECRET-GUARDIAN-KEY"
 SECRET_REDDIT_ID = "SUPERSECRET-REDDIT-CLIENT-ID"
@@ -231,20 +238,26 @@ def _probe_p2_happy_path() -> dict:
         status = run["status"]
         first = run["first_ms"]
         done = run["done_ms"]
-        passed = (
+        results = client.get(f"/api/v1/searches/{run['search_id']}/results?per_page=100").json()
+        # M22.x: structural correctness is asserted independently of wall-clock
+        # sampling - the job must complete, persist every result, and stay
+        # within the locked budgets. `first` progressiveness is then sampled
+        # on top (the widened FAST_DELAY makes that window reliably observable).
+        structural = (
             status == "completed"
-            and first is not None
-            and first < done
+            and len(results["items"]) == 13  # 5 + 5 + 3 from the three adapters
+            and all(s["status"] == "success" for s in search.stats["sources"])
             and sub < 500.0
-            and (first is None or first <= 3000.0)
             and done <= 5000.0
         )
+        progressive = first is not None and first < done and first <= 3000.0
+        passed = structural and progressive
         return {
             "name": "P2",
             "description": "happy path: first results <= 3 s, completed <= 5 s, progressive (first < done)",
-            "metrics": {"submission_ms": sub, "first_ms": first, "done_ms": done, "duration_ms": search.duration_ms, "result_count": search.stats and search.stats.get("ranking", {}).get("ranked")},
+            "metrics": {"submission_ms": sub, "first_ms": first, "done_ms": done, "duration_ms": search.duration_ms, "result_count": len(results["items"])},
             "passed": passed,
-            "detail": f"status={status} first={first} done={done}",
+            "detail": f"status={status} first={first} done={done} structural={structural}",
         }
 
 
@@ -260,21 +273,27 @@ def _probe_p3_slow_source_isolation() -> dict:
         done = run["done_ms"]
         search = _search_row(factory, run["search_id"])
         sources = {s["name"]: s for s in search.stats["sources"]}
-        fast_present = sources["Fast One"]["status"] == "success" and sources["Fast Two"]["status"] == "success"
-        passed = (
+        results = client.get(f"/api/v1/searches/{run['search_id']}/results?per_page=100").json()
+        # M22.x: structural assertions (all three sources succeed, results
+        # persist, completion bounded) independent of the poller; the sampled
+        # fast-before-slow window is on top (SLOW_DELAY=2s >> FAST_DELAY=0.4s
+        # leaves a 1.6 s observation window, immune to runner jitter).
+        structural = (
             run["status"] == "completed"
-            and first is not None
-            and first < SLOW_DELAY * 1000
-            and done < (SLOW_DELAY + 0.5) * 1000
-            and fast_present
+            and sources["Fast One"]["status"] == "success"
+            and sources["Fast Two"]["status"] == "success"
             and sources["Slow Source"]["status"] == "success"
+            and len(results["items"]) == 9
+            and done < (SLOW_DELAY + 0.5) * 1000
         )
+        progressive = first is not None and first < SLOW_DELAY * 1000
+        passed = structural and progressive
         return {
             "name": "P3",
             "description": "slow source does not hold the fast sources hostage (concurrent isolation)",
             "metrics": {"first_ms": first, "done_ms": done, "slow_delay_ms": SLOW_DELAY * 1000},
             "passed": passed,
-            "detail": f"status={run['status']} first={first} done={done} (slow budget {SLOW_DELAY*1000:.0f}ms)",
+            "detail": f"status={run['status']} first={first} done={done} structural={structural}",
         }
 
 
@@ -507,7 +526,10 @@ def _probe_p13_worst_case_timeout_budget() -> dict:
     from app.core.config import settings
 
     original = settings.source_timeout_seconds
-    settings.source_timeout_seconds = 0.3
+    # M22.x: must exceed FAST_DELAY (0.4s) so the healthy sources finish
+    # before the pipeline timeout cuts the hung source off; 1.0s keeps the
+    # hung source (1000s fake delay) firmly beyond the bound.
+    settings.source_timeout_seconds = 1.0
     try:
         adapters = {
             "hung": FakeAdapter("Hung Source", "news", delay=1000.0, count=0),
@@ -520,7 +542,7 @@ def _probe_p13_worst_case_timeout_budget() -> dict:
             timing = search.stats["timing_ms"]
             passed = (
                 run["status"] == "partial"
-                and timing["sources_ms"] >= 250
+                and timing["sources_ms"] >= 800
                 and timing["sources_ms"] < 3000
                 and run["done_ms"] < 5000.0
             )
@@ -528,7 +550,7 @@ def _probe_p13_worst_case_timeout_budget() -> dict:
                 "name": "P13",
                 "description": "worst case: a hung source is bounded by the pipeline timeout; completed within the <= 5 s budget",
                 "metrics": {
-                    "timeout_s": 0.3,
+                    "timeout_s": 1.0,
                     "sources_ms": timing["sources_ms"],
                     "postpass_ms": timing["postpass_ms"],
                     "completed_ms": run["done_ms"],

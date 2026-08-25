@@ -3,25 +3,25 @@
 - Status: **design + measurement; pipeline-level source timeout IMPLEMENTED (design 15.3.1), production otherwise unchanged**.
 - Pipeline-level source timeout: `4.5` s (asyncio.wait_for per source; a hung adapter is cancelled, so no indefinite search).
 - Locked targets: submission < 500 ms; first useful results <= 3000 ms; completed <= 5000 ms; source timeout ~5 s; no indefinite searches.
-- Controlled delays: fast 0.05 s, slow 0.5 s (proportionally below the real ~5 s timeouts).
+- Controlled delays: fast 0.4 s, slow 2.0 s (proportionally below the real ~5 s timeouts).
 
 ## 1. Probes (controlled, measured against the current production pipeline)
 
-| probe | behaviour                                                                                            | measured                                                                                                          | result |
-| ----- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------ |
-| P1    | submission cost < 500 ms                                                                             | {'submission_ms': 6.28}                                                                                           | PASS   |
-| P2    | happy path: first results <= 3 s, completed <= 5 s, progressive (first < done)                       | {'submission_ms': 6.6, 'first_ms': 251.14129995927215, 'done_ms': 258.51, 'duration_ms': 205, 'result_count': 13} | PASS   |
-| P3    | slow source does not hold the fast sources hostage (concurrent isolation)                            | {'first_ms': 173.62739995587617, 'done_ms': 587.16, 'slow_delay_ms': 500.0}                                       | PASS   |
-| P4    | a timing-out source is recorded and does not block the job (no indefinite wait for a failing source) | {'done_ms': 135.17}                                                                                               | PASS   |
-| P5    | one source down -> useful partial results                                                            | {'done_ms': 122.52, 'result_count': 3}                                                                            | PASS   |
-| P6    | all sources down -> clear failed state, zero results, per-source errors                              | {'done_ms': 111.56}                                                                                               | PASS   |
-| P7    | every scenario terminates within the deadline (no indefinite search in the probe matrix)             | {'max_done_ms': 587.16}                                                                                           | PASS   |
-| P8    | identical repeat searches -> identical results (cacheability evidence)                               | {'result_count': 8}                                                                                               | PASS   |
-| P9    | 4 concurrent searches complete correctly within a bounded wall clock                                 | {'wall_ms': 354.29, 'throughput': 11.29, 'statuses': ['completed', 'completed', 'completed', 'completed']}        | PASS   |
-| P10   | results endpoint latency with a large result set (p50 < 500 ms)                                      | {'p50_ms': 10.57}                                                                                                 | PASS   |
-| P11   | credentials never exposed in API responses (backend-only)                                            | {'leaked_urls': []}                                                                                               | PASS   |
-| P12   | post-pass (dedup + ranking) budget stays small at ~90 rows                                           | {'postpass_ms': 50, 'total_ms': 133, 'rows': 90}                                                                  | PASS   |
-| P13   | worst case: a hung source is bounded by the pipeline timeout; completed within the <= 5 s budget     | {'timeout_s': 0.3, 'sources_ms': 311, 'postpass_ms': 30, 'completed_ms': 373.69, 'status': 'partial'}             | PASS   |
+| probe | behaviour                                                                                            | measured                                                                                                            | result |
+| ----- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------ |
+| P1    | submission cost < 500 ms                                                                             | {'submission_ms': 11.62}                                                                                            | PASS   |
+| P2    | happy path: first results <= 3 s, completed <= 5 s, progressive (first < done)                       | {'submission_ms': 10.88, 'first_ms': 494.63660013861954, 'done_ms': 568.49, 'duration_ms': 505, 'result_count': 13} | PASS   |
+| P3    | slow source does not hold the fast sources hostage (concurrent isolation)                            | {'first_ms': 502.76400009170175, 'done_ms': 2135.04, 'slow_delay_ms': 2000.0}                                       | PASS   |
+| P4    | a timing-out source is recorded and does not block the job (no indefinite wait for a failing source) | {'done_ms': 539.1}                                                                                                  | PASS   |
+| P5    | one source down -> useful partial results                                                            | {'done_ms': 529.34, 'result_count': 3}                                                                              | PASS   |
+| P6    | all sources down -> clear failed state, zero results, per-source errors                              | {'done_ms': 488.51}                                                                                                 | PASS   |
+| P7    | every scenario terminates within the deadline (no indefinite search in the probe matrix)             | {'max_done_ms': 2135.04}                                                                                            | PASS   |
+| P8    | identical repeat searches -> identical results (cacheability evidence)                               | {'result_count': 8}                                                                                                 | PASS   |
+| P9    | 4 concurrent searches complete correctly within a bounded wall clock                                 | {'wall_ms': 837.79, 'throughput': 4.77, 'statuses': ['completed', 'completed', 'completed', 'completed']}           | PASS   |
+| P10   | results endpoint latency with a large result set (p50 < 500 ms)                                      | {'p50_ms': 14.9}                                                                                                    | PASS   |
+| P11   | credentials never exposed in API responses (backend-only)                                            | {'leaked_urls': []}                                                                                                 | PASS   |
+| P12   | post-pass (dedup + ranking) budget stays small at ~90 rows                                           | {'postpass_ms': 100, 'total_ms': 515, 'rows': 90}                                                                   | PASS   |
+| P13   | worst case: a hung source is bounded by the pipeline timeout; completed within the <= 5 s budget     | {'timeout_s': 1.0, 'sources_ms': 1028, 'postpass_ms': 53, 'completed_ms': 1128.88, 'status': 'partial'}             | PASS   |
 
 All 13 probes must pass; a FAIL is a finding to close in the M3.5 implementation checkpoint.
 

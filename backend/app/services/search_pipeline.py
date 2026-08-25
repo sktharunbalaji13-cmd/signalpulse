@@ -373,13 +373,26 @@ async def run_search_job(search_id: str) -> None:
         return_exceptions=True,
     )
     sources_ms = int((monotonic() - sources_started) * 1000)
+    # M22.x: a BaseException slot (e.g. CancelledError from worker recycle)
+    # escapes _run_source's ``except Exception`` handlers. Such failures were
+    # previously replaced with a nameless phantom dict that counted into the
+    # status but persisted no SourceEvent - invisible to operators. Resolve
+    # them with the real source name and carry exception detail for events.
+    phantom_failures: list[tuple[str, str, str]] = []
     if any(isinstance(status, BaseException) for status in source_statuses):
-        source_statuses = [
-            {"name": f"source-{index}", "status": "failed", "error": "unexpected error"}
-            if isinstance(status, BaseException)
-            else status
-            for index, status in enumerate(source_statuses)
-        ]
+        resolved: list[dict] = []
+        for index, status in enumerate(source_statuses):
+            if isinstance(status, BaseException):
+                name = enabled_names[index]
+                adapter = registry.get(name)
+                display = adapter.source_name if adapter else name
+                phantom_failures.append((display, type(status).__name__, str(status)))
+                resolved.append(
+                    {"name": display, "status": "failed", "error": "unexpected error"}
+                )
+            else:
+                resolved.append(status)
+        source_statuses = resolved
     for _name, display in disabled:
         source_statuses.append({"name": display, "status": "disabled"})
 
@@ -399,6 +412,24 @@ async def run_search_job(search_id: str) -> None:
                 )
             )
             log_event("source_disabled", search_id=search_id, source=display)
+        # M22.x: persist SourceEvents for BaseException escapes so the failure
+        # the status math already counted becomes visible in API/admin.
+        for display, exc_type, exc_message in phantom_failures:
+            session.add(
+                SourceEvent(
+                    search_id=search_id,
+                    source_name=display,
+                    status="failed",
+                    error_type="unexpected",
+                    error_message=f"{exc_type}: {exc_message}"[:500],
+                )
+            )
+            log_event(
+                "source_failed",
+                search_id=search_id,
+                source=display,
+                error=f"unexpected:{exc_type}",
+            )
         failed = sum(1 for s in source_statuses if s["status"] not in ("success", "disabled"))
         total_sources = sum(1 for s in source_statuses if s["status"] != "disabled")
         if failed == 0:

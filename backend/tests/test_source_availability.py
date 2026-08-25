@@ -237,6 +237,60 @@ class TestNoEnabledSources:
         assert BaseSourceAdapter.is_configured(WikipediaAdapter()) is True
 
 
+class TestPhantomFailureObservability:
+    """M22.x: a BaseException escaping _run_source (e.g. CancelledError from a
+    worker recycle) used to count toward status with no persisted SourceEvent.
+    The gather fallback must now record a visible failed/unexpected event."""
+
+    def test_base_exception_persists_failed_source_event(
+        self, client, session_factory, monkeypatch, no_reddit_creds
+    ):
+        import asyncio
+
+        class CancellingAdapter:
+            """Raises a BaseException, which except Exception cannot catch."""
+
+            source_type = "news"
+            source_name = "Doomed"
+
+            def is_configured(self):
+                return True
+
+            async def search(self, query, params=None):
+                raise asyncio.CancelledError("worker recycled mid-search")
+
+        class OkAdapter:
+            source_type = "news"
+            source_name = "Fine"
+
+            def is_configured(self):
+                return True
+
+            async def search(self, query, params=None):
+                return []
+
+        monkeypatch.setattr(
+            registry, "_adapters", {"doomed": CancellingAdapter(), "ok": OkAdapter()}
+        )
+        search_id = _make_search(client)
+
+        # The phantom source now surfaces as a failed/unexpected event, named.
+        events = (
+            client.get(f"/api/v1/searches/{search_id}").json()["sources"]
+        )
+        by_name = {s["name"]: s for s in events}
+        assert by_name["Doomed"]["status"] == "failed"
+        assert by_name["Doomed"]["error_type"] == "unexpected"
+        assert "CancelledError" in (by_name["Doomed"]["error"] or "")
+
+        with session_factory() as session:
+            rows = session.query(SourceEvent).filter_by(search_id=search_id).all()
+            doomed = next(e for e in rows if e.source_name == "Doomed")
+            assert doomed.status == "failed"
+            assert doomed.error_type == "unexpected"
+            assert "CancelledError" in doomed.error_message
+
+
 class TestCredentialTransition:
     """The design must not permanently special-case Reddit: credentials
     appearing flips Reddit from disabled back to a normal enabled source."""
