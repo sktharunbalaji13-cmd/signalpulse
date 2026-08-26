@@ -646,39 +646,95 @@ summary:focus-visible {
   color: var(--muted);
 }
 
-/* --- Mobile filter toggle (M23 final pass) -------------------------------- */
+/* --- Mobile filter & refine (M23.1) ---------------------------------------- */
 
-.filter-toggle {
-  display: none;
+.filter-refine {
+  margin: 1.1rem 0 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.filter-refine--open {
+  border-color: var(--border-strong);
+}
+
+.filter-refine__head {
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8rem;
-  background: var(--surface);
-  color: var(--accent-strong);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  background: transparent;
+  color: inherit;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-mono);
 }
 
-.filter-toggle:hover:not(:disabled) {
-  background: var(--accent-dim);
-  border-color: var(--accent);
+.filter-refine__head:hover:not(:disabled) {
+  background: var(--surface-2);
 }
 
-.filter-toggle__badge {
+.filter-refine__title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.filter-refine__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-refine__toggle {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.filter-refine__badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 1.15rem;
   height: 1.15rem;
-  padding: 0 0.3rem;
+  padding: 0 0.35rem;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--accent-dim);
+  color: var(--accent-strong);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
+}
+
+.filter-refine__body {
+  padding: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Desktop/tablet: the in-flow collapsible is hidden; the rail's persistent
+   filter panel (`.filter-panel`) is the filter surface. */
+@media (min-width: 1081px) {
+  .filter-refine {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .filter-panel {
+    display: none;
+  }
 }
 
 .result-count {
@@ -1762,16 +1818,6 @@ summary:focus-visible {
 
   .rail {
     position: static;
-  }
-
-  /* M23 final pass: filters collapse behind a "Filter & Refine" toggle on
-     tablet/mobile; results stay first in the single-column flow. */
-  .filter-toggle {
-    display: inline-flex;
-  }
-
-  .rail--collapsed {
-    display: none;
   }
 }
 

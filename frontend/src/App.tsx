@@ -5,6 +5,7 @@ import { AdminDashboard } from './components/AdminDashboard'
 import { EmptyState } from './components/EmptyState'
 import { EvidenceClassStrip } from './components/EvidenceClassStrip'
 import { FilterBar } from './components/FilterBar'
+import { FilterRefine } from './components/FilterRefine'
 import { Footer } from './components/Footer'
 import { Pagination } from './components/Pagination'
 import { ResultCard } from './components/ResultCard'
@@ -31,10 +32,8 @@ function App() {
   // M20.1: hash-based admin workspace route (no router dependency), mirroring
   // the existing ?s= deep-link convention.
   const [isAdmin, setIsAdmin] = useState(() => window.location.hash === '#/admin')
-  // M23 final pass: search input stays in sync with topic clicks; mobile
-  // filters are collapsed behind a "Filter & Refine" toggle by default.
+  // M23 final pass: search input stays in sync with topic clicks.
   const [searchInput, setSearchInput] = useState('')
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   useEffect(() => {
     const onHashChange = () => setIsAdmin(window.location.hash === '#/admin')
@@ -92,11 +91,6 @@ function App() {
   const partialCoverage = search.sources.some(
     (s) => s.status !== 'success' && s.status !== 'disabled',
   )
-  const activeFilterCount =
-    search.filters.sourceTypes.length +
-    (search.filters.time !== 'all' ? 1 : 0) +
-    (search.filters.duplicates === 'canonical' ? 1 : 0) +
-    (search.filters.language !== '' ? 1 : 0)
 
   function handleTopicClick(query: string) {
     setSearchInput(query)
@@ -178,6 +172,14 @@ function App() {
               </div>
             )}
           </div>
+
+          {search.viewState === 'idle' && (
+            <FilterRefine
+              filters={search.filters}
+              sources={search.sources}
+              onChange={search.setFilters}
+            />
+          )}
         </section>
 
         {rateLimited && (
@@ -257,17 +259,12 @@ function App() {
                       onToggleClass={handleToggleClass}
                     />
 
-                    <button
-                      type="button"
-                      className="filter-toggle"
-                      aria-expanded={mobileFiltersOpen}
-                      onClick={() => setMobileFiltersOpen((open) => !open)}
-                    >
-                      {mobileFiltersOpen ? 'Hide filters' : 'Filter & refine'}
-                      {filtersActive && !mobileFiltersOpen && activeFilterCount > 0 && (
-                        <span className="filter-toggle__badge">{activeFilterCount}</span>
-                      )}
-                    </button>
+                    <FilterRefine
+                      key={search.searchId ?? 'idle'}
+                      filters={search.filters}
+                      sources={search.sources}
+                      onChange={search.setFilters}
+                    />
 
                     <p className="eyebrow">Source Signals</p>
                     <SourceStatusSummary sources={search.sources} />
@@ -404,8 +401,8 @@ function App() {
               </section>
             </div>
 
-            <aside className={`rail ${mobileFiltersOpen ? '' : 'rail--collapsed'}`}>
-              <div className="panel">
+            <aside className="rail">
+              <div className="panel filter-panel">
                 <p className="eyebrow">Filters</p>
                 <FilterBar
                   filters={search.filters}
@@ -445,7 +442,7 @@ function App() {
         {!busy && !showResultsArea && search.viewState !== 'failed' && (
           <aside className="workspace workspace-pad">
             <div className="rail" style={{ position: 'static' }}>
-              <div className="panel">
+              <div className="panel filter-panel">
                 <p className="eyebrow">Filters</p>
                 <FilterBar
                   filters={search.filters}

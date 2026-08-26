@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -211,7 +211,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }))
     await screen.findByText('No results found.', {}, { timeout: 5000 })
 
-    await user.selectOptions(screen.getByLabelText('Time'), '7d')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Time' }), '7d')
 
     expect(await screen.findByText(/No results match these filters/)).toBeInTheDocument()
 
@@ -239,7 +239,7 @@ describe('App', () => {
     await waitForTerminalResults(3)
     mockedApi.getResults.mockClear()
 
-    await user.selectOptions(screen.getByLabelText('Time'), '24h')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Time' }), '24h')
 
     await waitFor(() =>
       expect(mockedApi.getResults).toHaveBeenCalledWith(
@@ -545,7 +545,7 @@ describe('App', () => {
     await waitForTerminalResults(1)
   })
 
-  it('toggles the mobile filter rail via Filter & refine (M23)', async () => {
+  it('toggles the Filter & refine panel (M23.1)', async () => {
     mockCompletedSearch(1)
     const user = userEvent.setup()
     render(<App />)
@@ -553,13 +553,76 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }))
     await waitForTerminalResults(1)
 
-    const toggle = screen.getByRole('button', { name: /Filter & refine/i })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(document.querySelector('.rail')).toHaveClass('rail--collapsed')
+    const head = screen.getByRole('button', { name: /Filter & refine/i })
+    expect(head).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.filter-refine__body')).toHaveAttribute('hidden')
 
-    await user.click(toggle)
-    expect(screen.getByRole('button', { name: /Hide filters/i })).toBeInTheDocument()
-    expect(document.querySelector('.rail')).not.toHaveClass('rail--collapsed')
+    await user.click(head)
+    expect(head).toHaveAttribute('aria-expanded', 'true')
+    expect(document.querySelector('.filter-refine__body')).not.toHaveAttribute('hidden')
+  })
+
+  it('shows the Filter & refine panel collapsed on the pre-search screen (M23.1)', () => {
+    render(<App />)
+    const head = screen.getByRole('button', { name: /Filter & refine/i })
+    expect(head).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.filter-refine__body')).toHaveAttribute('hidden')
+    expect(screen.getByText('All sources · All time · All duplicates')).toBeInTheDocument()
+  })
+
+  it('places Filter & refine between Evidence Classes and Source Signals after search (M23.1)', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'completed',
+        result_count: 2,
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          { name: 'The Guardian', status: 'success', result_count: 8, latency_ms: 410, error_type: null, error: null },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 2,
+      page: 1,
+      per_page: 20,
+      items: [makeResult(), makeResult({ source_type: 'news', source_name: 'The Guardian', title: 'G2' })],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await waitForTerminalResults(2)
+
+    const sections = Array.from(
+      document.querySelectorAll('main .class-strip, main .filter-refine, main .source-signals'),
+    )
+    const stripIndex = sections.findIndex((el) => el.classList.contains('class-strip'))
+    const refineIndex = sections.findIndex((el) => el.classList.contains('filter-refine'))
+    const signalsIndex = sections.findIndex((el) => el.classList.contains('source-signals'))
+    expect(refineIndex).toBeGreaterThan(stripIndex)
+    expect(refineIndex).toBeLessThan(signalsIndex)
+  })
+
+  it('keeps active filters visible and accurate when the panel is collapsed (M23.1)', async () => {
+    mockCompletedSearch(1)
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await waitForTerminalResults(1)
+
+    const head = screen.getByRole('button', { name: /Filter & refine/i })
+    await user.click(head)
+    // Rail panel remains the desktop surface in jsdom; scope to the FilterRefine.
+    const refineRegion = screen.getByRole('region', { name: /Filter & refine/i })
+    await user.selectOptions(within(refineRegion).getByLabelText('Time'), '24h')
+    await user.click(head)
+
+    expect(head).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.filter-refine__summary')?.textContent).toContain('24h')
+    const badge = document.querySelector('.filter-refine__badge')
+    expect(badge?.textContent).toContain('1 active')
   })
 
   it('filters results by tapping an evidence-class lens chip (M23)', async () => {
