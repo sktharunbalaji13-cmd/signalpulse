@@ -24,8 +24,9 @@ Answering a question well usually means looking in more than one place. News cov
 
 | Capability | State |
 |---|---|
-| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, Bluesky, YouTube) | **PRODUCTION** |
+| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, YouTube) | **PRODUCTION** |
 | Reddit source adapter | Implemented, credentials not configured in production |
+| Bluesky source adapter | Implemented, **disabled by default** (anonymous search edge-blocked; [ADR 0024](docs/ADR/0024-bluesky-disable-hybrid.md)) |
 | C4 ranking model | **PRODUCTION** (nDCG@10 = 0.7850 on frozen corpus) |
 | Semantic relevance stage (SEM1) | **EXPERIMENTAL — disabled** (see below) |
 | Deduplication (annotate, never delete) | **PRODUCTION** |
@@ -141,7 +142,7 @@ Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMA
 
 1. **M22.2 — GitHub** ✅ shipped ([ADR 0019](docs/ADR/0019-github-code-source.md))
 2. **M22.3 — Stack Overflow** ✅ shipped ([ADR 0020](docs/ADR/0020-stackoverflow-qa-source.md))
-3. **M22.4 — Bluesky** ✅ shipped ([ADR 0021](docs/ADR/0021-bluesky-social-source.md)) · **M22.5 — Semantic Scholar** (academic depth, after dedup-overlap measurement)
+3. **M22.4 — Bluesky** ✅ shipped, then **disabled by default** ([ADR 0021](docs/ADR/0021-bluesky-social-source.md), [ADR 0024](docs/ADR/0024-bluesky-disable-hybrid.md)) · **M22.5 — Semantic Scholar** (academic depth, after dedup-overlap measurement)
 4. Blocked externally: Reddit approval, X (no viable free tier). NO-GO on record: GDELT ([ADR 0005](docs/ADR/0005-gdelt-gate.md)), Crossref, Mastodon.
 5. Deferred: SEM1 activation (infrastructure-gated), accounts, alerting.
 

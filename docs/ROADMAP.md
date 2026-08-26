@@ -34,6 +34,7 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M22.4 | Bluesky social source - activates dormant social type | Anonymous single-page searchPosts (25/post max, no cursor - 403-blocked); live gate: 10/10 success, p50 1.75 s / max 2.24 s, 0 over budget; near-zero dedup overlap; only ranking change is SOURCE_QUALITY[Bluesky]=0.45 ([ADR 0021](ADR/0021-bluesky-social-source.md)) |
 | M22.6 | Third-party Reddit providers (FetchLayer et al.) | NO-GO on authorization/provenance grounds — technical fit was strong but no documented Reddit authorization exists for acquisition or downstream redistribution; official API remains the preferred path ([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)) |
 | M22.7 | YouTube video source + new ideo type | Keyed gate passed (10/10, p50 0.40 s, zero spam); quota-exhaustion (403 quotaExceeded) maps to rate_limited; quality 0.60, weights (0.55/0.25/0.20), 72h half-life ([ADR 0023](ADR/0023-youtube-video-source.md)) |
+| M22.13 | Bluesky disposition — disable anonymous Bluesky (Option C, hybrid) | Anonymous searchPosts proven edge-blocked (M22.12 diagnostic: `EDGE_RULE_HTML`, fingerprint `9221cfedfc5e`); disabled by default via `bluesky_anonymous_enabled=False`; 403→failed unchanged; no auth implemented; authenticated feasibility preserved as a separately gated milestone ([ADR 0024](ADR/0024-bluesky-disable-hybrid.md)) |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus
