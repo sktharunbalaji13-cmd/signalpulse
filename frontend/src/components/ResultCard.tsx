@@ -1,10 +1,24 @@
 import type { SearchResultItem } from '../api/client'
-import { formatTimestamp } from '../utils/format'
+import { formatRelativeTime, formatTimestamp } from '../utils/format'
 import { SourceChip } from './SourceChip'
 
 type ResultCardProps = {
   result: SearchResultItem
   rank?: number
+}
+
+function Freshness({ iso, label }: { iso: string | null; label: string }) {
+  if (iso === null) {
+    return <>{`${label}: Not provided by source`}</>
+  }
+  return (
+    <>
+      {label}:{' '}
+      <time dateTime={iso} title={formatTimestamp(iso)}>
+        {formatRelativeTime(iso)}
+      </time>
+    </>
+  )
 }
 
 export function ResultCard({ result, rank }: ResultCardProps) {
@@ -16,7 +30,7 @@ export function ResultCard({ result, rank }: ResultCardProps) {
       <div className="signal__body">
         <div className="signal__tags">
           <SourceChip sourceType={result.source_type} />
-          <span>{result.source_name}</span>
+          <span className="signal__source">{result.source_name}</span>
           {result.is_duplicate && <span className="chip chip--duplicate">duplicate</span>}
         </div>
         <h3>
@@ -29,8 +43,8 @@ export function ResultCard({ result, rank }: ResultCardProps) {
           <p className="signal__description">{result.description}</p>
         )}
         <p className="signal__times">
-          Published: {formatTimestamp(result.published_at)} · Retrieved:{' '}
-          {formatTimestamp(result.retrieved_at)}
+          <Freshness iso={result.published_at} label="Published" /> ·{' '}
+          <Freshness iso={result.retrieved_at} label="Retrieved" />
         </p>
       </div>
     </article>

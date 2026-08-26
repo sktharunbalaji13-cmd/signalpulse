@@ -76,4 +76,24 @@ describe('ResultCard', () => {
     )
     expect(screen.getByText(/Published:/)).not.toHaveTextContent('Not provided by source')
   })
+
+  it('renders relative freshness with the exact time on hover (M23 FE-C)', () => {
+    render(
+      <ResultCard
+        result={makeResult({
+          published_at: '2026-08-25T10:00:00Z',
+          retrieved_at: '2026-08-25T11:00:00Z',
+        })}
+      />,
+    )
+    const publishedTime = screen.getByText(/Published:/).querySelector('time')
+    expect(publishedTime).toHaveAttribute('datetime', '2026-08-25T10:00:00Z')
+    expect(publishedTime?.getAttribute('title')).toContain('2026')
+  })
+
+  it('separates evidence class from source identity (M23 FE-D)', () => {
+    render(<ResultCard result={makeResult()} />)
+    expect(screen.getByText('Wikipedia').className).toContain('signal__source')
+    expect(screen.getByText('REFERENCE').className).toContain('chip--reference')
+  })
 })

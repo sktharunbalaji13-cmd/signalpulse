@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import { AdminDashboard } from './components/AdminDashboard'
 import { EmptyState } from './components/EmptyState'
+import { EvidenceClassStrip } from './components/EvidenceClassStrip'
 import { FilterBar } from './components/FilterBar'
 import { Footer } from './components/Footer'
 import { Pagination } from './components/Pagination'
@@ -12,6 +13,7 @@ import { SearchBar } from './components/SearchBar'
 import { SearchHistory } from './components/SearchHistory'
 import { SourceStatusSummary } from './components/SourceStatusSummary'
 import { useSearch, type Filters } from './hooks/useSearch'
+import { activeClassCount, impactedClasses } from './utils/evidence'
 
 const EXAMPLE_QUERIES = ['artificial intelligence', 'quantum computing', 'climate policy']
 const PER_PAGE = 20
@@ -82,6 +84,7 @@ function App() {
     search.filters.language !== ''
   const engineOnline = apiStatus === 'ok'
   const activeSources = search.sources.filter((s) => s.status === 'success').length
+  const activeClasses = activeClassCount(search.sources)
   const partialCoverage = search.sources.some(
     (s) => s.status !== 'success' && s.status !== 'disabled',
   )
@@ -92,6 +95,9 @@ function App() {
 
   return (
     <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <header className="topbar">
         <span className="topbar__brand">SIGNALPULSE</span>
         <span className="topbar__right">
@@ -117,7 +123,7 @@ function App() {
           </div>
         </main>
       ) : (
-      <main className="app">
+      <main className="app" id="main-content" tabIndex={-1}>
         <section className="workspace-header" aria-label="Intelligence workspace">
           <p className="eyebrow">Intelligence Workspace</p>
           <h1>Track a topic across independent sources.</h1>
@@ -208,8 +214,15 @@ function App() {
                             {activeSources} SOURCE{activeSources === 1 ? '' : 'S'} ACTIVE
                           </span>
                         )}
+                        {activeClasses > 0 && (
+                          <span className="results-readout__meta">
+                            {activeClasses} CLASS{activeClasses === 1 ? '' : 'ES'}
+                          </span>
+                        )}
                       </div>
                     </div>
+
+                    <EvidenceClassStrip sources={search.sources} />
 
                     <p className="eyebrow">Source Signals</p>
                     <SourceStatusSummary sources={search.sources} />
@@ -287,14 +300,23 @@ function App() {
                         <p className="eyebrow">Partial Source Coverage</p>
                         <p>
                           {search.sources
-                            .filter((s) => s.status !== 'success')
+                            .filter((s) => s.status !== 'success' && s.status !== 'disabled')
                             .map((s) => s.name)
                             .join(', ')}{' '}
-                          {search.sources.filter((s) => s.status !== 'success').length === 1
+                          {search.sources.filter((s) => s.status !== 'success' && s.status !== 'disabled').length === 1
                             ? 'is'
                             : 'are'}{' '}
                           currently unavailable. Results from available sources are shown below.
                         </p>
+                        {impactedClasses(search.sources).length > 0 && (
+                          <p className="notice__detail">
+                            Missing evidence classes:{' '}
+                            {impactedClasses(search.sources)
+                              .map((aggregate) => aggregate.label)
+                              .join(', ')}
+                            .
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -340,7 +362,11 @@ function App() {
             <aside className="rail">
               <div className="panel">
                 <p className="eyebrow">Filters</p>
-                <FilterBar filters={search.filters} onChange={search.setFilters} />
+                <FilterBar
+                  filters={search.filters}
+                  sources={search.sources}
+                  onChange={search.setFilters}
+                />
               </div>
 
               <div className="panel history-panel">
@@ -375,7 +401,11 @@ function App() {
             <div className="rail" style={{ position: 'static' }}>
               <div className="panel">
                 <p className="eyebrow">Filters</p>
-                <FilterBar filters={search.filters} onChange={search.setFilters} />
+                <FilterBar
+                  filters={search.filters}
+                  sources={search.sources}
+                  onChange={search.setFilters}
+                />
               </div>
               <div className="panel history-panel">
                 <details className="history" open={search.history.length > 0}>

@@ -434,4 +434,69 @@ describe('App', () => {
       'https://www.linkedin.com/in/tharun-balaji-0ba196327/',
     )
   })
+
+  it('provides a skip link and lands on main content (M23 FE-H)', () => {
+    render(<App />)
+    const skip = screen.getByRole('link', { name: 'Skip to content' })
+    expect(skip).toHaveAttribute('href', '#main-content')
+    expect(document.querySelector('main#main-content')).not.toBeNull()
+  })
+
+  it('shows the evidence-class strip with a dormant social class (M23 FE-B)', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'completed',
+        result_count: 18,
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          { name: 'The Guardian', status: 'success', result_count: 8, latency_ms: 410, error_type: null, error: null },
+          { name: 'Reddit', status: 'disabled', result_count: null, latency_ms: null, error_type: 'disabled', error: null },
+          { name: 'Bluesky', status: 'disabled', result_count: null, latency_ms: null, error_type: 'disabled', error: null },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 18,
+      page: 1,
+      per_page: 20,
+      items: [makeResult(), makeResult({ source_type: 'news', source_name: 'The Guardian', title: 'G2' })],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(await screen.findByText('Reference', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText('· 10')).toBeInTheDocument()
+    expect(screen.getByText('Social')).toBeInTheDocument()
+    expect(screen.getAllByText('· dormant').length).toBeGreaterThan(0)
+  })
+
+  it('names missing evidence classes in the partial banner (M23 FE-F)', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'partial',
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          { name: 'YouTube', status: 'failed', result_count: null, latency_ms: 200, error_type: 'failed', error: 'boom' },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 1,
+      page: 1,
+      per_page: 20,
+      items: [makeResult()],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(
+      await screen.findByText(/Missing evidence classes: Video/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+  })
 })

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 
+import type { SourceStatus } from '../api/client'
 import type { Filters } from '../hooks/useSearch'
+import { classifySources } from '../utils/evidence'
 
 type FilterBarProps = {
   filters: Filters
   disabled?: boolean
+  sources?: SourceStatus[]
   onChange: (next: Partial<Filters>) => void
 }
 
@@ -13,12 +16,22 @@ const TIME_OPTIONS = ['24h', '7d', '30d', 'all'] as const
 const DUPLICATE_OPTIONS = ['all', 'canonical'] as const
 const LANGUAGE_RE = /^[a-z]{0,3}$/
 
-export function FilterBar({ filters, disabled = false, onChange }: FilterBarProps) {
+export function FilterBar({ filters, disabled = false, sources = [], onChange }: FilterBarProps) {
   const [languageDraft, setLanguageDraft] = useState(filters.language)
 
   useEffect(() => {
     setLanguageDraft(filters.language)
   }, [filters.language])
+
+  // M23 FE-E: annotate dormant classes (all sources disabled) so a filter that
+  // can currently return nothing is never a surprise. aria-hidden keeps the
+  // annotation out of each checkbox's accessible name.
+  const classAggregates = classifySources(sources)
+  const dormantClasses = new Set(
+    classAggregates
+      .filter((aggregate) => aggregate.status === 'dormant')
+      .map((aggregate) => aggregate.id),
+  )
 
   function toggleSourceType(sourceType: string) {
     const next = filters.sourceTypes.includes(sourceType)
@@ -55,6 +68,11 @@ export function FilterBar({ filters, disabled = false, onChange }: FilterBarProp
                 onChange={() => toggleSourceType(sourceType)}
               />
               {sourceType}
+              {dormantClasses.has(sourceType) && (
+                <span className="filter-check__note" aria-hidden="true">
+                  {' '}· dormant
+                </span>
+              )}
             </label>
           ))}
         </fieldset>

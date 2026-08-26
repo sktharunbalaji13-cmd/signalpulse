@@ -92,4 +92,33 @@ describe('FilterBar', () => {
       screen.queryByRole('button', { name: 'Clear filters' }),
     ).not.toBeInTheDocument()
   })
+
+  it('annotates a dormant class without changing its checkbox name (M23 FE-E)', () => {
+    render(
+      <FilterBar
+        filters={DEFAULT_FILTERS}
+        sources={[
+          {
+            name: 'Reddit',
+            status: 'disabled',
+            result_count: null,
+            latency_ms: null,
+            error_type: 'disabled',
+            error: null,
+          },
+          {
+            name: 'Bluesky',
+            status: 'disabled',
+            result_count: null,
+            latency_ms: null,
+            error_type: 'disabled',
+            error: null,
+          },
+        ]}
+        onChange={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('checkbox', { name: 'social' })).toBeInTheDocument()
+    expect(screen.getByText(/· dormant/)).toBeInTheDocument()
+  })
 })
