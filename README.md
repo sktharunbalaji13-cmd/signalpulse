@@ -8,6 +8,12 @@ SignalPulse is a multi-source intelligence workspace that fans a query across in
 
 ![SignalPulse desktop results — evidence classes, source signals, and ranked, attributed signals](docs/assets/results.png)
 
+## Screenshots
+
+| Mobile — evidence classes and progressive filtering | Admin — authenticated observability |
+|---|---|
+| ![Mobile results with evidence-class strip and Filter & refine](docs/assets/mobile-results.png) | ![Admin observability dashboard](docs/assets/admin-dashboard.png) |
+
 ## What it does
 
 SignalPulse treats the "look in many places" problem as an engineering problem. One query fans out in parallel to a set of independent public APIs, each with its own result shape, quality quirks, and duplicates. The pipeline canonicalizes every source into one contract, merges duplicates honestly, ranks deliberately, and returns a provenance-first results view — you always see *where* each signal came from and *how fresh* it is.
