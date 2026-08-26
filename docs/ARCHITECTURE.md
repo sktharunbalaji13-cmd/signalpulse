@@ -72,14 +72,25 @@ unrated today.
 ## Source adapters
 
 All adapters implement `BaseSourceAdapter.search(query, params) ->
-list[SourceResult]`. Registered: **Wikipedia** (MediaWiki action API),
-**The Guardian** (Open Platform API), **Reddit** (OAuth2 client-credentials;
-implemented, credentials not configured in production). GDELT exists but is
-deliberately unregistered ([ADR 0005](ADR/0005-gdelt-gate.md)).
+list[SourceResult]`. Registered and their production status:
+
+| Adapter | Evidence class | Status |
+|---|---|---|
+| Wikipedia (MediaWiki action API) | Reference | Active |
+| The Guardian (Open Platform API) | News | Active |
+| Hacker News (Algolia API) | News | Active ([ADR 0014](ADR/0014-hacker-news-source.md)) |
+| arXiv (Atom export API) | Research | Active ([ADR 0018](ADR/0018-arxiv-research-source.md)) |
+| GitHub (REST repository search) | Code | Active; disabled without a token ([ADR 0019](ADR/0019-github-code-source.md)) |
+| Stack Overflow (Stack Exchange API) | Q&A | Active; disabled without a key ([ADR 0020](ADR/0020-stackoverflow-qa-source.md)) |
+| YouTube (Data API v3 `search.list`) | Video | Active; quota exhaustion maps to `rate_limited` ([ADR 0023](ADR/0023-youtube-video-source.md)) |
+| Bluesky (AppView `searchPosts`) | Social | **Disabled by default** — anonymous path edge-blocked; M22.13 hybrid decision ([ADR 0024](ADR/0024-bluesky-disable-hybrid.md)) |
+| Reddit (OAuth2 client-credentials) | Social | **Dormant** — blocked externally; third-party paths rejected ([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)) |
+
+GDELT exists but is deliberately unregistered ([ADR 0005](ADR/0005-gdelt-gate.md)).
 
 Normalization rules include UTC timestamps, description caps, `[deleted]`
-Reddit authors → null, credential-shaped keys stripped from Reddit raw
-payloads, and canonical-URL-only navigation targets for social posts.
+Reddit authors → null, credential-shaped keys stripped from raw payloads,
+and canonical-URL-only navigation targets for social posts.
 
 ## Persistence
 

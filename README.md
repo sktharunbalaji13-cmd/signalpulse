@@ -1,40 +1,42 @@
 # SignalPulse
 
-**Real-time multi-source information intelligence — news, reference and social results, ranked and de-duplicated in one place.**
+**Search once. Compare evidence across sources.**
 
-**🟢 [Try the live demo](https://signalpulse-frontend.onrender.com)** — one query fans out to Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, Bluesky and YouTube in parallel; results are deduplicated, ranked, and attributed per source.
+SignalPulse is a multi-source intelligence workspace that fans a query across independent evidence sources, normalizes and deduplicates the results, ranks them using explainable signals, and presents their provenance and freshness in a focused research interface.
 
-![SignalPulse search results with per-source attribution](docs/assets/results.png)
+🟢 **[Try the live demo](https://signalpulse-frontend.onrender.com)** — deployed, running against real production APIs.
 
-SignalPulse runs one query across independent sources at the same time, removes duplicates, ranks the surviving signals, and serves them through a small API and workspace UI. It is a working production system: deployed, monitored, authenticated, rate-limited, and governed by an explicit data-retention policy.
+![SignalPulse desktop results — evidence classes, source signals, and ranked, attributed signals](docs/assets/results.png)
 
-## Screenshots
+## What it does
 
-| Landing workspace | Authenticated operations dashboard |
-|---|---|
-| ![Landing](docs/assets/landing.png) | ![Admin observability dashboard](docs/assets/admin-dashboard.png) |
+SignalPulse treats the "look in many places" problem as an engineering problem. One query fans out in parallel to a set of independent public APIs, each with its own result shape, quality quirks, and duplicates. The pipeline canonicalizes every source into one contract, merges duplicates honestly, ranks deliberately, and returns a provenance-first results view — you always see *where* each signal came from and *how fresh* it is.
 
-The dashboard renders live production telemetry (search volume, latency percentiles, per-source health, dedup, retention) behind a short-lived HttpOnly session — the admin key never enters the browser.
+It is a **working production system**: deployed on Render + Neon, monitored through an authenticated admin surface, rate-limited, and governed by an explicit 30-day data-retention policy.
 
-## Why SignalPulse?
+## Why it exists
 
-Answering a question well usually means looking in more than one place. News coverage gives recency, encyclopedic sources give stable background, and social discussion gives raw public reaction — but each lives behind its own API with its own result shape, quality quirks, and duplicates. SignalPulse treats that aggregation problem as an engineering problem: canonicalize every source into one contract, merge honestly, rank deliberately, and prove every decision with measurements.
+A good answer usually means consulting more than one kind of evidence: news for recency, encyclopedic sources for stable background, literature for depth, code and Q&A for the practical layer. Each lives behind its own API with its own quality quirks. SignalPulse exists to make that aggregation honest — and to make every decision behind it *measurable* rather than asserted.
 
-## Status at a glance
+## Evidence classes & sources
 
-| Capability | State |
-|---|---|
-| Multi-source search (Wikipedia, The Guardian, Hacker News, arXiv, GitHub, Stack Overflow, YouTube) | **PRODUCTION** |
-| Reddit source adapter | Implemented, credentials not configured in production |
-| Bluesky source adapter | Implemented, **disabled by default** (anonymous search edge-blocked; [ADR 0024](docs/ADR/0024-bluesky-disable-hybrid.md)) |
-| C4 ranking model | **PRODUCTION** (nDCG@10 = 0.7850 on frozen corpus) |
-| Semantic relevance stage (SEM1) | **EXPERIMENTAL — disabled** (see below) |
-| Deduplication (annotate, never delete) | **PRODUCTION** |
-| Result filtering & pagination | **PRODUCTION** |
-| Admin observability (`/admin/stats`) | **PRODUCTION**, authenticated |
-| Admin purge (single search / expired) | **PRODUCTION**, authenticated |
-| 30-day data retention | **PRODUCTION** |
-| GDELT adapter | Evaluated, NO-GO ([ADR 0005](docs/ADR/0005-gdelt-gate.md)) |
+SignalPulse does not treat every source as an undifferentiated search result. Sources are grouped into an **evidence-class taxonomy**, and multiple sources can contribute to the same class:
+
+| Evidence class | Active production sources | Role |
+|---|---|---|
+| **Reference** | Wikipedia | Stable background |
+| **News** | The Guardian · Hacker News | Recency and discussion |
+| **Research** | arXiv | Literature |
+| **Code** | GitHub | Repositories |
+| **Q&A** | Stack Overflow | Developer answers |
+| **Video** | YouTube | Explainers and course content |
+| **Social** | — *(Bluesky disabled by default; Reddit dormant)* | Community reaction |
+
+**7 active production sources** contribute across the implemented evidence-class taxonomy. **Bluesky is disabled by default** and **Reddit remains dormant** — both are represented honestly, never silently failing (see [Source status semantics](#evidence-gated-engineering)).
+
+- **Evidence class ≠ source.** Two news outlets both belong to the `news` class; each result still retains its exact source provenance.
+- Results retain **source, author, published time, retrieved time, and raw payload** end-to-end.
+- **Freshness and source quality influence ranking**; **deduplication** prevents repeated evidence (the same wire story from many outlets) from overwhelming the workspace.
 
 ## Architecture
 
@@ -42,121 +44,173 @@ Answering a question well usually means looking in more than one place. News cov
 flowchart TB
     B["Browser<br/>React 19 + Vite"] -->|"HTTPS"| API["FastAPI<br/>rate-limited · request logging"]
 
-    API -->|"POST /searches → 202"| PIPE["Async search pipeline<br/>asyncio.gather fan-out"]
-    API -->|"GET results / history"| DB[("PostgreSQL<br/>Neon")]
+    API -->|"POST /searches → 202"| PIPE["Search pipeline<br/>asyncio.gather fan-out"]
+    API -->|"GET results / status"| DB[("PostgreSQL<br/>Neon")]
 
-    PIPE --> W["Wikipedia adapter"]
-    PIPE --> G["The Guardian adapter"]
-    PIPE --> R["Reddit adapter<br/>(not configured yet)"]
-    PIPE --> HN["Hacker News adapter"]
-    PIPE --> AX["arXiv adapter<br/>(research)"]
-    PIPE --> GH["GitHub adapter<br/>(code)"]
-    PIPE --> SO["Stack Overflow adapter<br/>(qa)"]
-    PIPE --> BS["Bluesky adapter<br/>(social)"]
-    PIPE --> YT["YouTube adapter<br/>(video)"]
+    PIPE --> REF["Reference — Wikipedia"]
+    PIPE --> NEWS["News — Guardian · Hacker News"]
+    PIPE --> RES["Research — arXiv"]
+    PIPE --> CODE["Code — GitHub"]
+    PIPE --> QA["Q&A — Stack Overflow"]
+    PIPE --> VID["Video — YouTube"]
+    PIPE -. "disabled by default" .-> BS["Bluesky (social)"]
+    PIPE -. "dormant" .-> RD["Reddit (social)"]
 
-    W & G & R & HN & AX & GH & SO & BS & YT -->|"canonical SourceResult<br/>+ raw provenance JSON"| PERSIST["Persist results + source events"]
-
-    PERSIST --> DEDUP["Deduplication<br/>exact + fuzzy → annotate groups"]
+    REF & NEWS & RES & CODE & QA & VID --> CANON["Canonical SourceResult<br/>+ raw provenance JSON"]
+    CANON --> DEDUP["Deduplicate<br/>exact + fuzzy → annotate groups"]
     DEDUP --> SEM{"SEM1 semantic stage<br/>SEMANTIC_ENABLED=false"}
-    SEM -->|"disabled/failure → pure C4"| RANK["C4 ranking<br/>relevance · freshness · quality · diversity"]
+    SEM -->|"disabled → pure C4"| RANK["C4 ranking<br/>relevance · freshness · quality · diversity"]
     RANK --> DB
 
-    ADMIN(["Operator"]) -->|"X-Admin-Key"| SEC["Authenticated admin surface<br/>/admin/stats · purge endpoints"]
-    SEC --> DB
-
-    CLEANUP["Retention cleanup (30 days)<br/>startup task · batched deletes"] --> DB
+    UI["Evidence-class UI<br/>class strip · Filter & refine · provenance cards"] --> B
+    ADMIN(["Operator"]) -->|"X-Admin-Key → HttpOnly session"| OPS["Admin surface<br/>/admin/stats · purge"]
+    OPS --> DB
+    CLEANUP["Retention cleanup (30 days)"] --> DB
 ```
 
 Detailed component documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Key capabilities
+## Ranking & deduplication
 
-- **Measured in production** — p95 search latency **1.59 s** (24 h window, multi-source fan-out); zero empty-result searches across all traffic; ~0.3 % duplicate rate over ~2,500 ranked results.
-- **One query, eight source types** — news, reference, social discussion, research literature, code repositories, developer Q&A, public social posts, and video normalized into a single `SourceResult` contract with full raw-payload provenance.
-- **Honest failure handling** — each source is isolated with its own timeout (4.5 s) and database session; one failing source degrades the search to `partial` instead of failing everything.
-- **Annotate-don't-delete deduplication** — duplicate clusters are detected (canonical URL, normalized title, fuzzy match), grouped with evidence, and marked; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)).
-- **C4 ranking** — relevance, freshness, quality, and diversity signals composed into a deterministic total order, persisted per result.
-- **Query-time filters** — source type, time window, canonical-only, and language views over persisted rankings without re-ranking.
-- **Operational observability** — authenticated aggregate statistics: search volume, latency percentiles, per-source outcomes, dedup metrics, top normalized queries. A protected admin dashboard (`#/admin`) renders this telemetry via a short-lived HttpOnly session cookie — the admin key never enters the browser ([ADR 0016](docs/ADR/0016-admin-observability-dashboard.md)).
-- **Data lifecycle** — searches older than 30 days are deleted automatically (batched, transactional, dependency-safe); operators can purge a specific search or all expired records via authenticated endpoints.
+- **C4 ranking** — a deterministic, explainable score: relevance, freshness (exponential decay), source quality, and diversity. Every component is stored per result so "why is this #1?" is answerable. Baseline nDCG@10 **0.7850** on a frozen evaluation corpus.
+- **Annotate-don't-delete deduplication** — exact URL/title matches plus fuzzy title clustering mark duplicates into groups with evidence; no result row is ever destroyed ([ADR 0006](docs/ADR/0006-dedupe-key-non-unique.md)). The UI shows the canonical pick and its duplicate context.
+- **Query-time filters** — evidence class, time window, canonical-only, and language views over persisted rankings without re-ranking.
 
-## Research & evaluation
+## Provenance & explainability
 
-Ranking decisions are made against a frozen evaluation corpus (16 queries, 365 judged items) with pre-registered candidates and multi-metric gates. The ledger is intentionally full of NO-GOs:
+- Every result carries **source, author, published time, retrieved time, and the original raw API payload** (stored for audit).
+- The workspace surfaces **which evidence classes contributed to a search** (an evidence-class strip), **relative freshness with exact timestamps on hover**, and a clear **class-vs-source** separation.
+- Source **status is honest**: active sources report results; disabled/dormant sources render neutrally and never masquerade as failures ([ADR 0017](docs/ADR/0017-source-availability-semantics.md)).
+
+## Evidence-gated engineering
+
+The most important thing about SignalPulse is *how* it was built. Every source and ranking decision followed the same loop:
+
+```
+Hypothesis → feasibility audit → pre-registered gate → live measurement
+→ decision → minimal implementation → regression proof → production verification
+```
+
+Concrete examples from the M22.x expansion program:
+
+- **YouTube** — live API feasibility audit → keyed probe → relevance/latency/quota measurement → conditional GO → implementation → corpus regression → production verification. Quota exhaustion (403 `quotaExceeded`) maps to `rate_limited`, not failure ([ADR 0023](docs/ADR/0023-youtube-video-source.md)).
+- **Reddit** — third-party provider provenance audit identified authorization uncertainty; unofficial intermediaries were **rejected**, preserving the official API as the only acceptable path. Reddit is **dormant** pending an appropriate authorized integration ([ADR 0022](docs/ADR/0022-third-party-reddit-providers-no-go.md)).
+- **Bluesky** — a production reliability anomaly (persistent anonymous HTTP 403) was pursued with telemetry accumulation, then a **controlled one-shot diagnostic** that classified the response as an `EDGE_RULE_HTML` edge administrative block. The anonymous path was **disabled by default** via the M22.13 hybrid decision; authenticated feasibility was deliberately left as a separate, future-gated investigation rather than an implemented capability ([ADR 0024](docs/ADR/0024-bluesky-disable-hybrid.md)).
+- **arXiv** — production observability surfaced an unexpected failure; root cause was traced to an author-string truncation; a minimal fix plus regression test restored reliability.
+
+The research ledger is intentionally full of **NO-GOs** — each one a measured decision that protected the production ranker from unproven complexity, not abandoned work:
 
 | Experiment | Result |
 |---|---|
 | BM25 relevance baseline | Evaluated ([ADR 0007](docs/ADR/0007-bm25-relevance-evaluation.md)) |
 | Phrase bonus | NO-GO ([ADR 0008](docs/ADR/0008-phrase-bonus-no-go.md)) |
-| Score normalization variants | NO-GO ([ADR 0009](docs/ADR/0009-c4-normalization-no-go.md)) |
+| Score-normalization variants | NO-GO ([ADR 0009](docs/ADR/0009-c4-normalization-no-go.md)) |
 | Alternative relevance signal | NO-GO ([ADR 0010](docs/ADR/0010-c4-relevance-signal-no-go.md)) |
 | Semantic relevance (SEM1) | Experimental GO ([ADR 0011](docs/ADR/0011-semantic-relevance-decision.md)) |
+| GDELT | NO-GO — reliability/latency disqualifier ([ADR 0005](docs/ADR/0005-gdelt-gate.md)) |
 
-SEM1 (ONNX-int8 MiniLM, local inference) measured **nDCG@10 = 0.8084 vs C4's 0.7850** on the frozen corpus. It remains **disabled in production** because inference on the Render free tier measured ~3.5 s per search — a latency the product should not pay ([ADR 0012](docs/ADR/0012-semantic-production-architecture.md)). The code ships dormant (`SEMANTIC_ENABLED=false`), fails safe to pure C4, and can be activated by configuration alone.
+SEM1 (ONNX-int8 MiniLM, local inference) measured **nDCG@10 = 0.8084 vs C4's 0.7850** on the frozen corpus, but remains **disabled in production**: free-tier inference measured ~3.5 s per search — latency the product should not pay ([ADR 0012](docs/ADR/0012-semantic-production-architecture.md)). It ships dormant, fails safe to pure C4, and can be activated by configuration alone.
 
-The NO-GOs are deliberate outcomes of the evidence process, not unfinished work.
+### Source status semantics
+
+| Source | Status |
+|---|---|
+| Wikipedia · The Guardian · Hacker News · arXiv · GitHub · Stack Overflow · YouTube | **Active** (production) |
+| Bluesky | **Implemented, disabled by default** — anonymous production search returned a persistent 403 edge-administrative block; the anonymous path was disabled through the M22.13 hybrid decision. Authenticated feasibility remains a separate future gate, not an implemented capability ([ADR 0024](docs/ADR/0024-bluesky-disable-hybrid.md)) |
+| Reddit | **Dormant** — official API is the preferred future path; third-party acquisition paths were rejected on provenance/authorization grounds ([ADR 0022](docs/ADR/0022-third-party-reddit-providers-no-go.md)) |
+
+## Production status
+
+- Live at [https://signalpulse-frontend.onrender.com](https://signalpulse-frontend.onrender.com), auto-deployed from `main`.
+- **Measured in production** — p95 search latency **1.59 s** (24 h window, multi-source fan-out); zero empty-result searches; ~0.3 % duplicate rate (M18 production audit). Per-source live gates measured p50 0.40 s (YouTube), 0.58 s (GitHub), 0.95 s (arXiv), 0.98 s (Stack Overflow).
+- **Observability** — authenticated `/admin/stats` (search volume, latency percentiles, per-source outcomes, dedup, retention) behind a short-lived HttpOnly session; the admin key never enters the browser ([ADR 0016](docs/ADR/0016-admin-observability-dashboard.md)).
+- **Data lifecycle** — 30-day retention with batched, FK-safe cleanup; operators can purge immediately ([ADR 0013](docs/ADR/0013-data-retention-policy.md)).
+- **Failure isolation** — each source has its own timeout and database session; one failing source degrades to `partial`, never a global failure.
+
+## Validation & tests
+
+| Suite | Result |
+|---|---|
+| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, source availability, Postgres compatibility | **472 passed, 5 skipped** (477 collected) |
+| Frontend (Vitest + Testing Library) | **106 passed** |
+| Evaluation harness (corpus determinism, metric math, candidate gates) | **98 passed** |
+
+Linting: `ruff` across backend and eval. CI runs all suites plus the frontend TypeScript build and production build on every push ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+
+The final **production UX validation** ran 22 automated checks against the deployed application across **1440px desktop, 1024px tablet, 640px and 360px mobile** — covering responsive layout, evidence-class interaction, filtering/refinement, provenance and freshness presentation, disabled-source semantics, accessibility behavior, and API-contract preservation.
 
 ## Security & privacy
 
-- No user accounts; the service is anonymous by design. No IPs, sessions, or identifiers are stored.
-- **Admin surface** (`/api/v1/admin/stats`, purge endpoints) requires an `X-Admin-Key` header checked with a constant-time comparison; it fails closed when unconfigured. The admin dashboard authenticates by exchanging the key once for a short-lived HttpOnly cookie — the key never reaches browser code or storage.
-- **Retention:** searches and their dependent rows persist for 30 days (`searches.created_at` clock), then are deleted automatically in FK-safe, transactional batches. Operators can purge immediately ([ADR 0013](docs/ADR/0013-data-retention-policy.md)).
+- **Secrets stay server-side.** API keys are environment variables only, never committed; `.env.example` contains names, not values.
+- **No user accounts** — the service is anonymous by design; no IPs, sessions, or identifiers are stored.
+- **Admin surface** requires an `X-Admin-Key` checked in constant time and fails closed when unconfigured; the dashboard exchanges the key once for a short-lived HttpOnly cookie.
+- **Provenance is retained** — raw API payloads are stored for audit; credential-shaped keys are stripped at the adapter boundary.
+- **Unofficial data providers were rejected** when authorization was unclear (Reddit third-party audit).
+- **Disabled sources are represented honestly** rather than silently failing or faking availability.
 - Request logging records method, path, status, and latency only — never query text, headers, or secrets.
 - See [docs/PRIVACY.md](docs/PRIVACY.md) for what is stored and why.
 
-## Testing
+## Decisions (ADRs)
 
-| Suite | Count |
-|---|---|
-| Backend (pytest): pipeline, ranking, dedup, adapters, auth, retention, source availability, Postgres compatibility | 467 passed, 5 skipped |
-| Frontend (Vitest + Testing Library) | 64 passed |
-| Evaluation harness (corpus determinism, metric math, candidate gates) | 98 passed |
+24 architecture decision records cover the project's history — including the NO-GOs, the M21.3 source-availability semantics, every M22.x source gate, and the M22.13 Bluesky disposition:
 
-Linting: `ruff` across backend and eval. CI runs all suites plus the frontend TypeScript build on every push ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+[docs/ADR/](docs/ADR) — records **0001–0024**
 
-## Technology stack
+Deferred decisions are distinguished from rejected ones: NO-GOs (GDELT, phrase bonus, normalization variants, relevance signal, third-party Reddit) are closed decisions; deferred items are listed under [Project status](#project-status).
 
-- **Backend:** Python 3.11, FastAPI, SQLAlchemy 2, Alembic, httpx, ONNX Runtime + 🤗 tokenizers
-- **Database:** PostgreSQL (Neon serverless)
-- **Frontend:** React 19, Vite 6, TypeScript 5.7, Vitest + Testing Library
-- **Ops:** GitHub Actions CI, Render (free tier)
+## Local development
 
-## Deployment
+Prerequisites: Python 3.11, Node 20+, PostgreSQL (optional — SQLite for local dev).
 
-- Backend: Render web service, auto-deploys from `main`. Schema managed by Alembic; runtime uses `create_all` for idempotent bootstrapping.
-- Frontend: Render static site from `frontend/dist`.
-- Database: Neon free-tier PostgreSQL. Migrations applied with `alembic upgrade head` from `backend/`.
-- Operational procedures: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+```bash
+# Backend
+cd backend
+python -m venv .venv && .venv/Scripts/activate      # Windows; use source .venv/bin/activate on macOS/Linux
+pip install -e .[dev]
+cp .env.example .env                                # edit DATABASE_URL for Postgres if desired
+uvicorn app.main:app --reload                       # http://127.0.0.1:8000
+```
 
-## Current limitations
+```bash
+# Frontend (separate terminal)
+cd frontend
+npm install
+VITE_API_BASE=http://127.0.0.1:8000 npm run dev     # http://localhost:5173
+```
 
-- Reddit is implemented but disabled until credentials are configured; it renders as a neutral "disabled" source and does not affect search status — searches over the enabled sources report `completed` ([ADR 0017](docs/ADR/0017-source-availability-semantics.md)).
-- Semantic ranking is implemented and measurably better offline, but disabled in production pending infrastructure with acceptable inference latency.
-- Recent-searches history is stored locally in your browser only (query labels never leave your device); there are no user accounts.
-- Single-process assumptions (in-memory rate limiting and caches) hold on the current single-worker deployment.
+Environment variables are documented in [.env.example](.env.example) (root) and [backend/.env.example](backend/.env.example). Set a Guardian key and the other optional keys to enable those sources; leaving them empty disables the source cleanly.
 
-## Roadmap
+Run tests:
 
-Completed milestone history and next steps live in [docs/ROADMAP.md](docs/ROADMAP.md). Planned next (M22 multi-source expansion program, one gated source at a time):
+```bash
+cd backend && pytest                              # backend suite
+cd frontend && npm test && npm run build          # frontend tests + typecheck + production build
+```
 
-1. **M22.2 — GitHub** ✅ shipped ([ADR 0019](docs/ADR/0019-github-code-source.md))
-2. **M22.3 — Stack Overflow** ✅ shipped ([ADR 0020](docs/ADR/0020-stackoverflow-qa-source.md))
-3. **M22.4 — Bluesky** ✅ shipped, then **disabled by default** ([ADR 0021](docs/ADR/0021-bluesky-social-source.md), [ADR 0024](docs/ADR/0024-bluesky-disable-hybrid.md)) · **M22.5 — Semantic Scholar** (academic depth, after dedup-overlap measurement)
-4. Blocked externally: Reddit approval, X (no viable free tier). NO-GO on record: GDELT ([ADR 0005](docs/ADR/0005-gdelt-gate.md)), Crossref, Mastodon.
-5. Deferred: SEM1 activation (infrastructure-gated), accounts, alerting.
+Deployment and operational procedures: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
+## Project status
+
+**Complete.** The engineering, production deployment, and UX work are finished and live.
+
+Deferred opportunities (not missing requirements):
+
+- **M22.5 — Semantic Scholar (deferred).** The decisive **keyed** arXiv↔Semantic Scholar duplicate-overlap measurement remains incomplete; Semantic Scholar was *not* rejected. It stays deferred pending that measurement.
+- **Authenticated Bluesky feasibility** — a future, separately-gated investigation; not an implemented capability.
+- **SEM1 activation** — measured quality gain does not justify free-tier inference latency; revisit after an infrastructure upgrade (config-only to enable).
+- **FE-G / FE-I / FE-K / FE-J (frontend backlog)** — empty-state recovery suggestions, a deeper evidence-class lens, keyboard result navigation, and "also reported by N sources" (requires backend data).
 
 ## Documentation
 
 | Document | Purpose |
 |---|---|
-| [PROJECT_SPEC.md](PROJECT_SPEC.md) | Original architectural contract and source validation |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current system overview |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Milestone history and plan |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System overview |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Milestone history and status |
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | Operational procedures |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Data storage, retention, and logging boundaries |
-| [docs/ADR/](docs/ADR) | Decision records 0001–0023 |
+| [docs/ADR/](docs/ADR) | Decision records 0001–0024 |
+| [PROJECT_SPEC.md](PROJECT_SPEC.md) | Original architectural contract and source validation |
 
 ## License
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE)

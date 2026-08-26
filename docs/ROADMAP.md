@@ -1,7 +1,9 @@
 # SignalPulse Roadmap
 
-Status: **post-M22.7**. Everything below marked ✅ is shipped and deployed;
-items under *Next* / *Deferred* are **planned, not implemented**.
+Status: **Complete.** Everything below marked ✅ is shipped and deployed. The
+project's engineering, production deployment, and UX work are finished. The
+remaining items under *Deferred* / *Blocked* are opportunities, not missing
+requirements.
 
 ## Completed milestones
 
@@ -35,23 +37,33 @@ items under *Next* / *Deferred* are **planned, not implemented**.
 | M22.6 | Third-party Reddit providers (FetchLayer et al.) | NO-GO on authorization/provenance grounds — technical fit was strong but no documented Reddit authorization exists for acquisition or downstream redistribution; official API remains the preferred path ([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)) |
 | M22.7 | YouTube video source + new ideo type | Keyed gate passed (10/10, p50 0.40 s, zero spam); quota-exhaustion (403 quotaExceeded) maps to rate_limited; quality 0.60, weights (0.55/0.25/0.20), 72h half-life ([ADR 0023](ADR/0023-youtube-video-source.md)) |
 | M22.13 | Bluesky disposition — disable anonymous Bluesky (Option C, hybrid) | Anonymous searchPosts proven edge-blocked (M22.12 diagnostic: `EDGE_RULE_HTML`, fingerprint `9221cfedfc5e`); disabled by default via `bluesky_anonymous_enabled=False`; 403→failed unchanged; no auth implemented; authenticated feasibility preserved as a separately gated milestone ([ADR 0024](ADR/0024-bluesky-disable-hybrid.md)) |
+| M23 | Frontend design thinking & product UX evolution | Read-only UX audit → design-thinking proposal → tranche 1 (responsive cascade fix, evidence-class contribution strip, relative freshness, class-vs-source distinction, dormant-class visibility, partial-state explanation, accessibility) → final UX pass (interactive evidence lenses, product proposition, product footer, mobile filter & refine) → 106 frontend tests, production UX validation across 1440/1024/640/360 |
+| M23.1 | Mobile Filter & Refine consistency | One unified `Filter & refine` collapsible across pre/post-search mobile states, collapsed by default, desktop rail preserved |
 
 The M7–M9 NO-GOs are evidence-driven decisions that protected the production
 ranker from unproven complexity — not abandoned work. The evaluation corpus
 and harness remain the gate for any future ranking change.
 
-## Next
+## Deferred & blocked
 
-The M22 multi-source expansion program proceeds one gated source at a time
-(audit → adapter → corpus evidence → live measurement → production):
+The project is complete; these are deliberate deferrals or external blocks,
+not active development.
 
-### M22.5 — Semantic Scholar *(planned)*
-Gated on measuring arXiv↔S2 duplicate overlap once both exist.
+### M22.5 — Semantic Scholar *(deferred)*
+Not a NO-GO. The decisive **keyed** arXiv↔Semantic Scholar duplicate-overlap
+measurement remains incomplete; Semantic Scholar is deferred pending that
+measurement.
+
+### Authenticated Bluesky feasibility *(future, separately gated)*
+Not implemented. The M22.13 hybrid decision disabled the anonymous path;
+reopening social coverage requires a pre-registered, separately approved
+authenticated feasibility gate ([ADR 0024](ADR/0024-bluesky-disable-hybrid.md)).
 
 ### Reddit activation *(blocked externally)*
 Enable the implemented Reddit adapter by configuring OAuth credentials.
-M21.3 already made it render neutrally as `disabled`; activation is
-**blocked solely on Reddit API access approval**.
+Activation is **blocked solely on an appropriate authorized integration**
+(official API approval); third-party acquisition paths were rejected on
+provenance/authorization grounds ([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)).
 
 ## Deferred
 
@@ -66,6 +78,9 @@ M21.3 already made it render neutrally as `disabled`; activation is
 - **Further sources beyond M22** — the adapter contract makes them cheap to add, but only when a concrete information need appears; every new *source type* additionally passes the ranking-evidence gate.
 - **Scaling work** — multi-worker rate limiting/dedup caches, admin-stats SQL
   aggregation — all fine at current volume (~50 searches/day).
+- **Frontend backlog (M23 deferrals)** — FE-G empty-state recovery suggestions,
+  FE-I deeper evidence-class lens, FE-K keyboard result navigation,
+  FE-J "also reported by N sources" (requires backend data).
 
 ## Explicit non-goals
 

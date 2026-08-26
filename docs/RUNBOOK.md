@@ -101,14 +101,20 @@ Backend service (Render):
 
 Frontend service: `VITE_API_BASE` (public backend URL).
 
-### Configuring Reddit credentials *(planned — not yet done)*
+### Configuring Reddit credentials *(dormant — blocked externally)*
+
+Reddit is **dormant**: activation is blocked solely on an appropriate
+authorized integration (official API approval). Third-party/unofficial
+acquisition paths were rejected on provenance/authorization grounds
+([ADR 0022](ADR/0022-third-party-reddit-providers-no-go.md)). If an
+authorized integration becomes available:
 
 1. Create a Reddit "script" app (OAuth client-credentials type).
 2. Set `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` on the Render backend
    service; the service restarts automatically.
 3. Verify: run a search containing social-discussion topics and check
    `/admin/stats` shows Reddit `success` events; search status should become
-   `completed` when all three sources succeed.
+   `completed` when all enabled sources succeed.
 
 No code changes are required; the adapter raises a clean per-source failure
 while credentials are absent.
