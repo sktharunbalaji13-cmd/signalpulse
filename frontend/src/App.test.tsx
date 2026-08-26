@@ -49,6 +49,7 @@ function mockCompletedSearch(total = 1) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  window.localStorage.clear()
   window.history.replaceState({}, '', '/')
   mockedApi.getHealth.mockResolvedValue({
     status: 'ok',
@@ -304,6 +305,9 @@ describe('App', () => {
     expect(screen.getByText(/✓ The Guardian/)).toBeInTheDocument()
     expect(screen.getByText('8 results')).toBeInTheDocument()
     expect(screen.getByText('NEWS')).toBeInTheDocument()
+    expect(screen.getByText(/2 SOURCES/)).toBeInTheDocument()
+    expect(screen.getByText(/2 CLASSES/)).toBeInTheDocument()
+    expect(screen.getByText(/Different sources can contribute/)).toBeInTheDocument()
   })
 
   it('represents an unconfigured source as a source failure, not a global failure', async () => {
@@ -497,6 +501,102 @@ describe('App', () => {
 
     expect(
       await screen.findByText(/Missing evidence classes: Video/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+  })
+
+  it('re-runs a recent query as an instant search and syncs the input (M23)', async () => {
+    window.localStorage.setItem(
+      'signalpulse:history',
+      JSON.stringify([
+        {
+          search_id: 'seed1',
+          query: 'pytorch',
+          created_at: '2026-08-25T10:00:00Z',
+          status: 'completed',
+          result_count: 4,
+        },
+      ]),
+    )
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's2', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({ search_id: 's2', query: 'pytorch', status: 'completed', result_count: 4 }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 4,
+      page: 1,
+      per_page: 20,
+      items: [makeResult()],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /pytorch/ }))
+
+    expect(mockedApi.createSearch).toHaveBeenCalledWith('pytorch')
+    expect(screen.getByLabelText('Search topic')).toHaveValue('pytorch')
+  })
+
+  it('syncs the search input when an example topic is clicked (M23)', async () => {
+    mockCompletedSearch(1)
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'quantum computing' }))
+    expect(screen.getByLabelText('Search topic')).toHaveValue('quantum computing')
+    await waitForTerminalResults(1)
+  })
+
+  it('toggles the mobile filter rail via Filter & refine (M23)', async () => {
+    mockCompletedSearch(1)
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await waitForTerminalResults(1)
+
+    const toggle = screen.getByRole('button', { name: /Filter & refine/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.rail')).toHaveClass('rail--collapsed')
+
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: /Hide filters/i })).toBeInTheDocument()
+    expect(document.querySelector('.rail')).not.toHaveClass('rail--collapsed')
+  })
+
+  it('filters results by tapping an evidence-class lens chip (M23)', async () => {
+    mockedApi.createSearch.mockResolvedValue({ search_id: 's1', status: 'running' })
+    mockedApi.getSearch.mockResolvedValue(
+      makeSearchStatus({
+        status: 'completed',
+        result_count: 2,
+        sources: [
+          { name: 'Wikipedia', status: 'success', result_count: 10, latency_ms: 320, error_type: null, error: null },
+          { name: 'The Guardian', status: 'success', result_count: 8, latency_ms: 410, error_type: null, error: null },
+        ],
+      }),
+    )
+    mockedApi.getResults.mockResolvedValue({
+      total: 2,
+      page: 1,
+      per_page: 20,
+      items: [makeResult(), makeResult({ source_type: 'news', source_name: 'The Guardian', title: 'G2' })],
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(screen.getByLabelText('Search topic'), 'ai')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await waitForTerminalResults(2)
+    mockedApi.getResults.mockClear()
+
+    await user.click(screen.getByRole('button', { name: /Reference/ }))
+
+    await waitFor(() =>
+      expect(mockedApi.getResults).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({ sourceTypes: ['reference'], page: 1 }),
+      ),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Remove source type filter reference' }),
     ).toBeInTheDocument()
   })
 })

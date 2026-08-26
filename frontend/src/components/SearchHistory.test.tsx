@@ -39,6 +39,22 @@ describe('SearchHistory', () => {
     const onSelect = vi.fn()
     render(<SearchHistory items={[makeItem()]} onSelect={onSelect} />)
     await user.click(screen.getByRole('button', { name: /artificial intelligence/ }))
-    expect(onSelect).toHaveBeenCalledWith('s1')
+    expect(onSelect).toHaveBeenCalledWith(makeItem())
+  })
+
+  it('highlights the row matching the active query (M23)', () => {
+    render(
+      <SearchHistory
+        items={[makeItem(), makeItem({ search_id: 's2', query: 'quantum' })]}
+        activeQuery="quantum"
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /quantum/ }).className).toContain(
+      'history-item--active',
+    )
+    expect(
+      screen.getByRole('button', { name: /artificial intelligence/ }).className,
+    ).not.toContain('history-item--active')
   })
 })

@@ -578,6 +578,23 @@ summary:focus-visible {
   color: var(--muted);
 }
 
+/* Interactive lens chips (M23 final pass): tap to filter by evidence class. */
+.class-chip--lens {
+  cursor: pointer;
+  font: inherit;
+}
+
+.class-chip--lens.class-chip:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.class-chip--selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent-strong);
+}
+
 /* --- Results header -------------------------------------------------------- */
 
 .results-header {
@@ -620,6 +637,48 @@ summary:focus-visible {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.results-readout__note {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+/* --- Mobile filter toggle (M23 final pass) -------------------------------- */
+
+.filter-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.8rem;
+  background: var(--surface);
+  color: var(--accent-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.filter-toggle:hover:not(:disabled) {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.filter-toggle__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .result-count {
@@ -1173,6 +1232,15 @@ summary:focus-visible {
   border-color: var(--accent);
 }
 
+.history-item:active:not(:disabled) {
+  background: var(--accent-dim);
+}
+
+.history-item--active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
 .history-item__query {
   font-size: 0.88rem;
   font-weight: 600;
@@ -1239,10 +1307,9 @@ summary:focus-visible {
   max-width: 1240px;
   margin: 0 auto;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1.25rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
   animation: footer-rise 0.6s ease-out both;
 }
 
@@ -1286,9 +1353,40 @@ summary:focus-visible {
 }
 
 .footer__tagline {
+  margin: 0;
   color: var(--muted);
   letter-spacing: 0.04em;
   text-transform: none;
+}
+
+.footer__connect {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.footer__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  max-width: 1240px;
+  margin: 1.5rem auto 0;
+  padding: 0.8rem 1.25rem 0;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--muted);
 }
 
 .footer__links {
@@ -1664,6 +1762,16 @@ summary:focus-visible {
 
   .rail {
     position: static;
+  }
+
+  /* M23 final pass: filters collapse behind a "Filter & Refine" toggle on
+     tablet/mobile; results stay first in the single-column flow. */
+  .filter-toggle {
+    display: inline-flex;
+  }
+
+  .rail--collapsed {
+    display: none;
   }
 }
 

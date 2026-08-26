@@ -18,21 +18,30 @@ export function Footer() {
           </span>
           <span className="footer__pulse" aria-hidden="true" />
           <span className="footer__name">SIGNALPULSE</span>
-          <span className="footer__tagline">Multi-source intelligence workspace</span>
         </div>
-        <ul className="footer__links" aria-label="Contact and profiles">
-          {SOCIAL_LINKS.map((link) => (
-            <li key={link.label}>
-              <a href={link.href} target="_blank" rel="noopener noreferrer">
-                <span className="footer__link-label">{link.label}</span>
-                <span className="footer__link-value">{link.value}</span>
-                <span className="footer__link-arrow" aria-hidden="true">
-                  ↗
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <p className="footer__tagline">
+          Multi-source intelligence, ranked for signal, not noise.
+        </p>
+        <nav className="footer__connect" aria-label="Connect">
+          <p className="footer__label">Connect</p>
+          <ul className="footer__links">
+            {SOCIAL_LINKS.map((link) => (
+              <li key={link.label}>
+                <a href={link.href} target="_blank" rel="noopener noreferrer">
+                  <span className="footer__link-label">{link.label}</span>
+                  <span className="footer__link-value">{link.value}</span>
+                  <span className="footer__link-arrow" aria-hidden="true">
+                    ↗
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+      <div className="footer__legal">
+        <span>© 2026 SignalPulse</span>
+        <span>Built for evidence-driven research.</span>
       </div>
     </footer>
   )

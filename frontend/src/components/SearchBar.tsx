@@ -1,19 +1,35 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 
 type SearchBarProps = {
   disabled: boolean
   /** Submit-button label; defaults to Searching…/Search based on `disabled`. */
   label?: string
+  /** M23: externally-controlled query text (synced from topic clicks). */
+  value?: string
+  onValueChange?: (value: string) => void
   onSearch: (query: string) => void
 }
 
-export function SearchBar({ disabled, label, onSearch }: SearchBarProps) {
-  const [value, setValue] = useState('')
+export function SearchBar({ disabled, label, value, onValueChange, onSearch }: SearchBarProps) {
+  const [internal, setInternal] = useState(value ?? '')
   const [validationError, setValidationError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (value !== undefined) {
+      setInternal(value)
+    }
+  }, [value])
+
+  const current = value !== undefined ? value : internal
+
+  const handleChange = (raw: string) => {
+    setInternal(raw)
+    onValueChange?.(raw)
+  }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const query = value.trim()
+    const query = current.trim()
     if (!query) {
       setValidationError('Enter a query to search.')
       return
@@ -31,8 +47,8 @@ export function SearchBar({ disabled, label, onSearch }: SearchBarProps) {
         <input
           id="search-input"
           type="text"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
+          value={current}
+          onChange={(event) => handleChange(event.target.value)}
           disabled={disabled}
           placeholder="e.g. artificial intelligence"
           aria-describedby={validationError ? 'search-error' : undefined}

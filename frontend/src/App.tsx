@@ -31,6 +31,10 @@ function App() {
   // M20.1: hash-based admin workspace route (no router dependency), mirroring
   // the existing ?s= deep-link convention.
   const [isAdmin, setIsAdmin] = useState(() => window.location.hash === '#/admin')
+  // M23 final pass: search input stays in sync with topic clicks; mobile
+  // filters are collapsed behind a "Filter & Refine" toggle by default.
+  const [searchInput, setSearchInput] = useState('')
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   useEffect(() => {
     const onHashChange = () => setIsAdmin(window.location.hash === '#/admin')
@@ -88,9 +92,26 @@ function App() {
   const partialCoverage = search.sources.some(
     (s) => s.status !== 'success' && s.status !== 'disabled',
   )
+  const activeFilterCount =
+    search.filters.sourceTypes.length +
+    (search.filters.time !== 'all' ? 1 : 0) +
+    (search.filters.duplicates === 'canonical' ? 1 : 0) +
+    (search.filters.language !== '' ? 1 : 0)
+
+  function handleTopicClick(query: string) {
+    setSearchInput(query)
+    void search.runSearch(query)
+  }
 
   function removeFilter(partial: Partial<Filters>) {
     search.setFilters(partial)
+  }
+
+  function handleToggleClass(classId: string) {
+    const next = search.filters.sourceTypes.includes(classId)
+      ? search.filters.sourceTypes.filter((t) => t !== classId)
+      : [...search.filters.sourceTypes, classId]
+    search.setFilters({ sourceTypes: next })
   }
 
   return (
@@ -128,14 +149,17 @@ function App() {
           <p className="eyebrow">Intelligence Workspace</p>
           <h1>Track a topic across independent sources.</h1>
           <p className="lede">
-            One query sweeps news, reference and social channels — results are ranked and
-            de-duplicated before they reach you.
+            One search fans out across evidence classes — news, research, code, Q&A,
+            reference and video — and returns ranked, attributed signals. Search once,
+            compare evidence across sources.
           </p>
 
           <div className="search-shell">
             <SearchBar
               disabled={busy || rateLimited}
               label={busy ? 'Searching…' : 'Search'}
+              value={searchInput}
+              onValueChange={setSearchInput}
               onSearch={search.runSearch}
             />
             {search.viewState === 'idle' && (
@@ -146,7 +170,7 @@ function App() {
                     key={example}
                     type="button"
                     className="example-chip"
-                    onClick={() => void search.runSearch(example)}
+                    onClick={() => handleTopicClick(example)}
                   >
                     {example}
                   </button>
@@ -211,7 +235,7 @@ function App() {
                         <span className="results-readout__signals">{search.total} SIGNALS</span>
                         {activeSources > 0 && (
                           <span className="results-readout__meta">
-                            {activeSources} SOURCE{activeSources === 1 ? '' : 'S'} ACTIVE
+                            {activeSources} SOURCE{activeSources === 1 ? '' : 'S'}
                           </span>
                         )}
                         {activeClasses > 0 && (
@@ -220,9 +244,30 @@ function App() {
                           </span>
                         )}
                       </div>
+                      {activeSources > 0 && activeClasses > 0 && (
+                        <p className="results-readout__note">
+                          Different sources can contribute to the same evidence class.
+                        </p>
+                      )}
                     </div>
 
-                    <EvidenceClassStrip sources={search.sources} />
+                    <EvidenceClassStrip
+                      sources={search.sources}
+                      selected={search.filters.sourceTypes}
+                      onToggleClass={handleToggleClass}
+                    />
+
+                    <button
+                      type="button"
+                      className="filter-toggle"
+                      aria-expanded={mobileFiltersOpen}
+                      onClick={() => setMobileFiltersOpen((open) => !open)}
+                    >
+                      {mobileFiltersOpen ? 'Hide filters' : 'Filter & refine'}
+                      {filtersActive && !mobileFiltersOpen && activeFilterCount > 0 && (
+                        <span className="filter-toggle__badge">{activeFilterCount}</span>
+                      )}
+                    </button>
 
                     <p className="eyebrow">Source Signals</p>
                     <SourceStatusSummary sources={search.sources} />
@@ -359,7 +404,7 @@ function App() {
               </section>
             </div>
 
-            <aside className="rail">
+            <aside className={`rail ${mobileFiltersOpen ? '' : 'rail--collapsed'}`}>
               <div className="panel">
                 <p className="eyebrow">Filters</p>
                 <FilterBar
@@ -376,7 +421,8 @@ function App() {
                   </summary>
                   <SearchHistory
                     items={search.history}
-                    onSelect={(id) => void search.openSearch(id)}
+                    activeQuery={search.query}
+                    onSelect={(item) => handleTopicClick(item.query)}
                   />
                 </details>
               </div>
@@ -414,7 +460,8 @@ function App() {
                   </summary>
                   <SearchHistory
                     items={search.history}
-                    onSelect={(id) => void search.openSearch(id)}
+                    activeQuery={search.query}
+                    onSelect={(item) => handleTopicClick(item.query)}
                   />
                 </details>
               </div>

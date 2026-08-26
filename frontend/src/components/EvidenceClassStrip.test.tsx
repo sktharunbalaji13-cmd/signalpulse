@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { SourceStatus } from '../api/client'
 import { EvidenceClassStrip } from './EvidenceClassStrip'
@@ -58,5 +59,46 @@ describe('EvidenceClassStrip', () => {
     render(<EvidenceClassStrip sources={[source('Wikipedia', 'success', 4)]} />)
     expect(screen.queryByText('Code')).not.toBeInTheDocument()
     expect(screen.queryByText('Social')).not.toBeInTheDocument()
+  })
+
+  it('renders active classes as interactive lens buttons (M23)', async () => {
+    const user = userEvent.setup()
+    const onToggleClass = vi.fn()
+    render(
+      <EvidenceClassStrip
+        sources={[source('Wikipedia', 'success', 10)]}
+        onToggleClass={onToggleClass}
+      />,
+    )
+    const chip = screen.getByRole('button', { name: /Reference/ })
+    expect(chip).toHaveAttribute('aria-pressed', 'false')
+    await user.click(chip)
+    expect(onToggleClass).toHaveBeenCalledWith('reference')
+  })
+
+  it('marks a selected lens chip as pressed (M23)', () => {
+    render(
+      <EvidenceClassStrip
+        sources={[source('Wikipedia', 'success', 10)]}
+        selected={['reference']}
+        onToggleClass={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /Reference/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  it('keeps dormant chips informational rather than interactive (M23)', () => {
+    render(
+      <EvidenceClassStrip
+        sources={[source('Reddit', 'disabled'), source('Bluesky', 'disabled')]}
+        onToggleClass={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByText('Social')).toBeInTheDocument()
+    expect(screen.getByText('· dormant')).toBeInTheDocument()
   })
 })
